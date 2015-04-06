@@ -635,7 +635,7 @@
         "category": "Error",
         "code": 1203
     },
-    "Cannot compile external modules into amd or commonjs when targeting es6 or higher.": {
+    "Cannot compile external modules into amd, system or commonjs when targeting es6 or higher.": {
         "category": "Error",
         "code": 1204
     },
@@ -658,6 +658,10 @@
     "Ambient const enums are not allowed when the '--separateCompilation' flag is provided.": {
         "category": "Error",
         "code": 1209
+    },
+    "Export assignment is not supported with '--module' flag is 'system'.": {
+        "category": "Error",
+        "code": 1210
     },
     "Duplicate identifier '{0}'.": {
         "category": "Error",
@@ -1808,7 +1812,7 @@
         "category": "Message",
         "code": 6015
     },
-    "Specify module code generation: 'commonjs' or 'amd'": {
+    "Specify module code generation: 'commonjs', 'system' or 'amd'": {
         "category": "Message",
         "code": 6016
     },
@@ -1892,7 +1896,7 @@
         "category": "Error",
         "code": 6045
     },
-    "Argument for '--module' option must be 'commonjs' or 'amd'.": {
+    "Argument for '--module' option must be 'commonjs', 'system' or 'amd'.": {
         "category": "Error",
         "code": 6046
     },

@@ -10486,9 +10486,15 @@ module ts {
 
             checkExternalModuleExports(container);
 
-            if (node.isExportEquals && languageVersion >= ScriptTarget.ES6) {
-                // export assignment is deprecated in es6 or above
-                grammarErrorOnNode(node, Diagnostics.Export_assignment_cannot_be_used_when_targeting_ECMAScript_6_or_higher_Consider_using_export_default_instead);
+            if (node.isExportEquals) {
+                if (languageVersion >= ScriptTarget.ES6) {
+                    // export assignment is deprecated in es6 or above
+                    grammarErrorOnNode(node, Diagnostics.Export_assignment_cannot_be_used_when_targeting_ECMAScript_6_or_higher_Consider_using_export_default_instead);
+                }
+                else if (compilerOptions.module === ModuleKind.System) {
+                    // 'system' module shape does not support 'export ='
+                    grammarErrorOnNode(node, Diagnostics.Export_assignment_is_not_supported_with_module_flag_is_system);
+                }
             }
         }
 
