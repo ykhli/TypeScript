@@ -2055,7 +2055,25 @@ module ts {
                 emitEmbeddedStatement(node.statement);
             }
 
+            function isSourceFileLevelDeclaration(node: Node): boolean {
+                let current = node;
+                while (current) {
+                    if (current.kind === SyntaxKind.SourceFile) {
+                        return true;
+                    }
+                    else if (isFunctionLike(current) || current.kind === SyntaxKind.ModuleBlock) {
+                        return false;
+                    }
+                    else {
+                        current = current.parent;
+                    }
+                }
+            }
+ 
             function emitStartOfVariableDeclarationList(decl: Node, startPos?: number): void {
+                if (compilerOptions.module === ModuleKind.System && isSourceFileLevelDeclaration(decl)) {
+                    return;
+                }
                 let tokenKind = SyntaxKind.VarKeyword;
                 if (decl && languageVersion >= ScriptTarget.ES6) {
                     if (isLet(decl)) {
@@ -2068,6 +2086,7 @@ module ts {
 
                 if (startPos !== undefined) {
                     emitToken(tokenKind, startPos);
+                    write(" ");
                 }
                 else {
                     switch (tokenKind) {
@@ -2089,7 +2108,6 @@ module ts {
                     let variableDeclarationList = <VariableDeclarationList>node.initializer;
                     let declarations = variableDeclarationList.declarations;
                     emitStartOfVariableDeclarationList(declarations[0], endPos);
-                    write(" ");
                     emitCommaList(declarations);
                 }
                 else if (node.initializer) {
@@ -2116,7 +2134,6 @@ module ts {
                     if (variableDeclarationList.declarations.length >= 1) {
                         let decl = variableDeclarationList.declarations[0];
                         emitStartOfVariableDeclarationList(decl, endPos);
-                        write(" ");
                         emit(decl);
                     }
                 }
@@ -2429,33 +2446,45 @@ module ts {
 
             function emitExportMemberAssignment(node: FunctionLikeDeclaration | ClassDeclaration) {
                 if (node.flags & NodeFlags.Export) {
-                    writeLine();
-                    emitStart(node);
-                    if (node.flags & NodeFlags.Default) {
-                        write("exports.default");
+                    if (compilerOptions.module === ModuleKind.System) {
+                        emitPublishOfExportedValueForSystemModuleKind(<Identifier>node.name, <Identifier>node.name);
                     }
                     else {
-                        emitModuleMemberName(node);
+                        writeLine();
+                        emitStart(node);
+                        if (node.flags & NodeFlags.Default) {
+                            write("exports.default");
+                        }
+                        else {
+                            emitModuleMemberName(node);
+                        }
+                        write(" = ");
+                        emitDeclarationName(node);
+                        emitEnd(node);
+                        write(";");
                     }
-                    write(" = ");
-                    emitDeclarationName(node);
-                    emitEnd(node);
-                    write(";");
                 }
             }
 
             function emitExportMemberAssignments(name: Identifier) {
                 if (!exportEquals && exportSpecifiers && hasProperty(exportSpecifiers, name.text)) {
-                    for (let specifier of exportSpecifiers[name.text]) {
-                        writeLine();
-                        emitStart(specifier.name);
-                        emitContainingModuleName(specifier);
-                        write(".");
-                        emitNodeWithoutSourceMap(specifier.name);
-                        emitEnd(specifier.name);
-                        write(" = ");
-                        emitExpressionIdentifier(name);
-                        write(";");
+                    if (compilerOptions.module === ModuleKind.System) {
+                        for (let specifier of exportSpecifiers[name.text]) {
+                            emitPublishOfExportedValueForSystemModuleKind(specifier.propertyName, specifier.name);
+                        }
+                    }
+                    else {
+                        for (let specifier of exportSpecifiers[name.text]) {
+                            writeLine();
+                            emitStart(specifier.name);
+                            emitContainingModuleName(specifier);
+                            write(".");
+                            emitNodeWithoutSourceMap(specifier.name);
+                            emitEnd(specifier.name);
+                            write(" = ");
+                            emitExpressionIdentifier(name);
+                            write(";");
+                        }
                     }
                 }
             }
@@ -4449,94 +4478,72 @@ module ts {
                 }
             }
 
-            function writeListElement(text: string, listIsStarted: boolean): boolean {
+            function writeListElement(node: string, listIsStarted: boolean): boolean {
                 if (listIsStarted) {
                     write(", ");
                 }
-                write(text);
+
+                write(node);
                 return true;
             }
 
-            function isPartOfVariableDeclarationName(node: Node): boolean {
-                if (!node) {
-                    return false;
-                }
+            function hoistTopLevelVariableAndFunctionDeclarations(node: SourceFile): void {
+                let hoistedLocals: Identifier[];
+                let hoistedFunctionDeclarations: FunctionDeclaration[];
 
-                if (node.kind === SyntaxKind.VariableDeclaration) {
-                    return true;
-                }
+                visit(node);
 
-                let current = node;
-                while (current.parent) {
-                    if (current.parent.kind === SyntaxKind.VariableDeclaration) {
-                        return (<VariableDeclaration>current.parent).name === current;
-                    }
-                    
-                    current = current.parent;
-                }
-
-                return false;
-            }
-
-            function getIdentifierText(node: Identifier): string {
-                return getSourceTextOfNodeFromSourceFile(currentSourceFile, node);
-            }
-
-            function writeIdentifierText(node: Identifier): void {
-                write(getIdentifierText(node));
-            }
-
-            function hoistTopLevelVariableAndFunctionDeclaration(node: SourceFile): void {
-                let listIsStarted = false;
-                let hoistedFunctions: Symbol[];
-                for (let name in node.locals) {
-                    let value = node.locals[name];
-                    if (value.flags & SymbolFlags.Export) {
-                        value = value.exportSymbol;
-                        Debug.assert(!!value);
-                    }
-                    if (value.flags & SymbolFlags.FunctionScopedVariable && isPartOfVariableDeclarationName(value.valueDeclaration)) {
-                        let declName = (<Declaration>value.valueDeclaration).name;
-                        if (nodeIsMissing(declName)) {
-                            continue;
-                        }
-
-                        Debug.assert(declName.kind === SyntaxKind.Identifier);
-
-                        // if local is function scoped variable declaration - it should be hoisted to module declaration scope
-                        if (listIsStarted) {
+                if (hoistedLocals) {
+                    writeLine();
+                    write("var ");
+                    for (let i = 0; i < hoistedLocals.length; ++i) {
+                        let local = hoistedLocals[i];
+                        if (i !== 0) {
                             write(", ");
                         }
-                        else {
-                            write("var ");
-                            listIsStarted = true;
-                        }
-                        writeIdentifierText(<Identifier>declName)
+                        emit(local);
                     }
-                    else if (value.flags & SymbolFlags.Function && value.valueDeclaration.kind === SyntaxKind.FunctionDeclaration) {
-                        (hoistedFunctions || (hoistedFunctions = [])).push(value);
-                    }
+                    write(";")
                 }
 
-                if (listIsStarted) {
-                    write(";");
+                if (hoistedFunctionDeclarations) {
                     writeLine();
-                }
-
-                if (hoistedFunctions) {
-                    for (let value of hoistedFunctions) {
-                        emit(value.valueDeclaration);
-                        writeLine();
-                        let declName = (<FunctionDeclaration>value.valueDeclaration).name;
-                        if (!nodeIsMissing(declName)) {
-                            let text = getIdentifierText(declName);
-                            if (value.valueDeclaration.flags & NodeFlags.Export) {
-                                write(`${currentFileExports}("${text}", ${text})`);
-                                writeLine();
-                            }
-                        }
+                    for (let f of hoistedFunctionDeclarations) {
+                        emit(f);
                     }
                 }
+
+                function visit(node: Node): void {
+                    if (node.kind === SyntaxKind.FunctionDeclaration) {
+                        (hoistedFunctionDeclarations || (hoistedFunctionDeclarations = [])).push(<FunctionDeclaration>node);
+                        return;
+                    }
+
+                    if (node.kind === SyntaxKind.VariableDeclaration || node.kind === SyntaxKind.BindingElement) {
+                        let name = (<VariableDeclaration | BindingElement>node).name;
+                        if (name.kind === SyntaxKind.Identifier) {
+                            (hoistedLocals || (hoistedLocals = [])).push(<Identifier>name);
+                        }
+                        else {
+                            forEachChild(name, visit);
+                        }
+                        return;
+                    }
+
+                    if (isBindingPattern(node)) {
+                        forEach((<BindingPattern>node).elements, visit);
+                        return;
+                    }
+
+
+                    if (!isDeclaration(node)) {
+                        forEachChild(node, visit);
+                    }
+                }
+            }
+
+            function getTextOfIdentifier(node: Identifier): string {
+                return getSourceTextOfNodeFromSourceFile(currentSourceFile, node);
             }
 
             function emitVariableDeclarationsForImports(setterParameterName: string) {
@@ -4545,82 +4552,88 @@ module ts {
                 if (externalImports.length) {
                     setters = [];
                     write("var ");
-                    let isFirst = true;
+                    let listIsStarted = false;
 
                     // hoist imported names
                     for (var importNode of externalImports) {
-                        let settersForImport: string[];
                         switch (importNode.kind) {
                             case SyntaxKind.ImportDeclaration:
                                 var importClause = (<ImportDeclaration>importNode).importClause;
-                                if (importClause) {
-                                    if (importClause.name) {
-                                        // import |d| ... from '...'
-                                        let name = declarationNameToString(importClause.name);
-                                        isFirst = writeListElement(name, isFirst);
-
-                                        let setter = `${name} = ${setterParameterName}["default"];`;
-                                        (settersForImport || (settersForImport = [])).push(setter);
-                                    }
-
-                                    if (importClause.namedBindings) {
-                                        switch (importClause.namedBindings.kind) {
-                                            case SyntaxKind.NamespaceImport:
-                                                // import |* as d|
-                                                let name = declarationNameToString((<NamespaceImport>importClause.namedBindings).name);
-                                                isFirst = writeListElement(name, isFirst);
-
-                                                let setter = `${name} = ${setterParameterName}`;
-                                                (settersForImport || (settersForImport = [])).push(setter);
-                                                break;
-                                            case SyntaxKind.NamedImports:
-                                                for (let namedImport of (<NamedImports>importClause.namedBindings).elements) {
-                                                    let name = declarationNameToString(namedImport.name);
-                                                    isFirst = writeListElement(name, isFirst);
-
-                                                    let propName = namedImport.propertyName
-                                                        ? declarationNameToString(namedImport.propertyName)
-                                                        : name;
-                                                    let setter = `${name} = ${setterParameterName}.${propName}`;
-                                                    (settersForImport || (settersForImport = [])).push(setter);
-                                                }
-                                                break;
-                                        }
-                                    }
+                                if (!importClause) {
+                                    // import 'm'
+                                    // push 'undefined' to mark that empty setter should be emitted
+                                    setters.push(undefined);
+                                    break;
                                 }
+
+                                let settersForImport: string[] = [];
+
+                                if (importClause.name) {
+                                    // import |d| ... from '...'
+                                    let name = getTextOfIdentifier(importClause.name);
+                                    listIsStarted = writeListElement(name, listIsStarted);
+
+                                    settersForImport.push(`${name} = ${setterParameterName}["default"];`);
+                                }
+
+                                switch (importClause.namedBindings && importClause.namedBindings.kind) {
+                                    case SyntaxKind.NamespaceImport:
+                                        // import |* as d|
+                                        let name = getTextOfIdentifier((<NamespaceImport>importClause.namedBindings).name);
+                                        listIsStarted = writeListElement(name, listIsStarted);
+
+                                        settersForImport.push(`${name} = ${setterParameterName}`);
+                                        break;
+                                    case SyntaxKind.NamedImports:
+                                        for (let namedImport of (<NamedImports>importClause.namedBindings).elements) {
+                                            let name = getTextOfIdentifier(namedImport.name);
+                                            listIsStarted = writeListElement(name, listIsStarted);
+
+                                            let propName = namedImport.propertyName
+                                                ? getTextOfIdentifier(namedImport.propertyName)
+                                                : name;
+                                            settersForImport.push(`${name} = ${setterParameterName}.${propName};`);
+                                        }
+                                        break;
+                                }
+                                setters.push(settersForImport)
                                 break;
                             case SyntaxKind.ImportEqualsDeclaration:
                                 // import a = ...
-                                let name = getGeneratedNameForNode(<ImportEqualsDeclaration>importNode);
-                                isFirst = writeListElement(name, isFirst);
+                                let name = getTextOfIdentifier((<ImportEqualsDeclaration>importNode).name);
+                                listIsStarted = writeListElement(name, listIsStarted);
 
-                                let setter = `${name} = ${setterParameterName}`;
-                                (settersForImport || (settersForImport = [])).push(setter);
+                                setters.push([`${name} = ${setterParameterName};`])
                                 break;
                             case SyntaxKind.ExportDeclaration:
-                                // no variable added
-                                if ((<ExportDeclaration>importNode).exportClause) {
-                                    for (let e of (<ExportDeclaration>importNode).exportClause.elements) {
-                                        let name = declarationNameToString(e.name);
-                                        let propName = e.propertyName ? declarationNameToString(e.propertyName) : name;
-                                        let setter = `${currentFileExports}("${propName}", ${setterParameterName}[${name}])`;
-                                        (settersForImport || (settersForImport = [])).push(setter);
-                                    }
-                                }
-                                else {
-                                    // export * from
-                                    let setter = `for (var n in ${setterParameterName}) ${currentFileExports}(n, ${setterParameterName}[n])`;
-                                    (settersForImport || (settersForImport = [])).push(setter);
-                                }
+                                setters.push(getSetterCodeForExportDeclaration(<ExportDeclaration>importNode, setterParameterName));
                                 break;
                         }
-
-                        setters.push(settersForImport);
                     }
                     write(";")
                 }
 
                 return setters;
+            }
+
+            function getSetterCodeForExportDeclaration(importNode: ExportDeclaration, setterParameterName: string): string[] {
+                let setterCode: string[];
+                // no variable added
+                if ((<ExportDeclaration>importNode).exportClause) {
+                    for (let e of (<ExportDeclaration>importNode).exportClause.elements) {
+                        let name = declarationNameToString(e.name);
+                        let propName = e.propertyName ? declarationNameToString(e.propertyName) : name;
+                        let setter = `${currentFileExports}("${name}", ${setterParameterName}["${propName}"]);`;
+                        (setterCode || (setterCode = [])).push(setter);
+                    }
+                }
+                else {
+                    // export * from
+                    let setter = `for (var n in ${setterParameterName}) ${currentFileExports}(n, ${setterParameterName}[n]);`;
+                    (setterCode || (setterCode = [])).push(setter);
+                }
+
+                return setterCode;
             }
 
             function emitSetters(setters: string[][], setterParameterName: string): void {
@@ -4643,8 +4656,8 @@ module ts {
                             decreaseIndent();
                             writeLine();
                         }
-                        decreaseIndent();
                         write("}");
+                        decreaseIndent();
                     }
                 }
                 write("],");
@@ -4654,25 +4667,44 @@ module ts {
                 write("execute: function() {");
                 increaseIndent();
                 writeLine();
-                emitLinesStartingAt(node.statements, startIndex);
-                emitTempDeclarations(/*newLine*/ true);
+                for (let i = startIndex; i < node.statements.length; ++i) {
+                    let statement = node.statements[i];
+                    switch (statement.kind) {
+                        case SyntaxKind.ExportDeclaration:
+                        case SyntaxKind.ImportDeclaration:
+                        case SyntaxKind.ImportEqualsDeclaration:
+                        case SyntaxKind.FunctionDeclaration:
+                            continue;
+                    }
+                    emit(statement);
+                }
                 decreaseIndent();
+                writeLine();
+                write("}") // execute
+                emitTempDeclarations(/*newLine*/ true);
+            }
+
+            function emitPublishOfExportedValueForSystemModuleKind(propName: Identifier, name: Identifier): void {
+                writeLine();
+                write(`${currentFileExports}("`);
+                emitNodeWithoutSourceMap(name);
+                write(`", `);
+                emit(propName || name);
+                write(");");
             }
 
             function emitSystemModuleBody(node: SourceFile, startIndex: number): void {
                 let setterParameterName = makeUniqueName("v");
-                let codeOfSetters = emitVariableDeclarationsForImports(setterParameterName);
+                let settersCode = emitVariableDeclarationsForImports(setterParameterName);
                 writeLine();
-                hoistTopLevelVariableAndFunctionDeclaration(node);
+                hoistTopLevelVariableAndFunctionDeclarations(node);
                 writeLine();
                 write("return {");
                 increaseIndent();
                 writeLine();
-                emitSetters(codeOfSetters, setterParameterName);
+                emitSetters(settersCode, setterParameterName);
                 writeLine();
                 emitExecute(node, startIndex);
-                writeLine();
-                write("}") // execute
                 decreaseIndent();
                 writeLine();
                 write("}"); // return
