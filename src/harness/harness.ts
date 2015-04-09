@@ -957,6 +957,8 @@ module Harness {
                                     options.module = ts.ModuleKind.CommonJS;
                                 } else if (setting.value.toLowerCase() === 'unspecified') {
                                     options.module = ts.ModuleKind.None;
+                                } else if (setting.value.toLowerCase() === 'system') {
+                                    options.module = ts.ModuleKind.System;
                                 } else {
                                     throw new Error('Unknown module type ' + setting.value);
                                 }
