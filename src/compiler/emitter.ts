@@ -2502,7 +2502,18 @@ module ts {
                 let emitCount = 0;
                 // An exported declaration is actually emitted as an assignment (to a property on the module object), so
                 // temporary variables in an exported declaration need to have real declarations elsewhere
-                let isDeclaration = (root.kind === SyntaxKind.VariableDeclaration && !(getCombinedNodeFlags(root) & NodeFlags.Export)) || root.kind === SyntaxKind.Parameter;
+                // Also temporary variables should be explicitly allocated for source level declarations when module target is system
+                // because actual variable declarations are hoisted
+                let isDeclaration = false;
+                if (root.kind === SyntaxKind.VariableDeclaration) {
+                    let isExported = getCombinedNodeFlags(root) & NodeFlags.Export;
+                    let isSourceLevelForSystemModuleKind = compilerOptions.module === ModuleKind.System && isSourceFileLevelDeclaration(root);
+                    isDeclaration = !isExported && !isSourceLevelForSystemModuleKind;
+                }
+                else if (root.kind === SyntaxKind.Parameter) {
+                    isDeclaration = true;
+                }
+
                 if (root.kind === SyntaxKind.BinaryExpression) {
                     emitAssignmentExpression(<BinaryExpression>root);
                 }
