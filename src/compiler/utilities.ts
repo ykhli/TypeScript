@@ -145,7 +145,7 @@ module ts {
 
         return node.pos === node.end && node.kind !== SyntaxKind.EndOfFileToken;
     }
-    
+
     export function nodeIsPresent(node: Node) {
         return !nodeIsMissing(node);
     }
@@ -158,6 +158,14 @@ module ts {
         }
 
         return skipTrivia((sourceFile || getSourceFileOfNode(node)).text, node.pos);
+    }
+
+    export function getNonDecoratorTokenPosOfNode(node: Node, sourceFile?: SourceFile): number {
+        if (nodeIsMissing(node) || !node.decorators) {
+            return getTokenPosOfNode(node, sourceFile);
+        }
+
+        return skipTrivia((sourceFile || getSourceFileOfNode(node)).text, node.decorators.end);        
     }
 
     export function getSourceTextOfNodeFromSourceFile(sourceFile: SourceFile, node: Node): string {
@@ -296,7 +304,7 @@ module ts {
                 errorNode = (<Declaration>node).name;
                 break;
         }
-        
+
         if (errorNode === undefined) {
             // If we don't have a better node, then just set the error on the first token of 
             // construct.
@@ -449,6 +457,18 @@ module ts {
         return false;
     }
 
+    export function isAccessor(node: Node): boolean {
+        if (node) {
+            switch (node.kind) {
+                case SyntaxKind.GetAccessor:
+                case SyntaxKind.SetAccessor:
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
     export function isFunctionLike(node: Node): boolean {
         if (node) {
             switch (node.kind) {
@@ -514,6 +534,19 @@ module ts {
                     // the *body* of the container.
                     node = node.parent;
                     break;
+                case SyntaxKind.Decorator:
+                    // Decorators are always applied outside of the body of a class or method. 
+                    if (node.parent.kind === SyntaxKind.Parameter && isClassElement(node.parent.parent)) {
+                        // If the decorator's parent is a Parameter, we resolve the this container from
+                        // the grandparent class declaration.
+                        node = node.parent.parent;
+                    }
+                    else if (isClassElement(node.parent)) {
+                        // If the decorator's parent is a class element, we resolve the 'this' container
+                        // from the parent class declaration.
+                        node = node.parent;
+                    }
+                    break;
                 case SyntaxKind.ArrowFunction:
                     if (!includeArrowFunctions) {
                         continue;
@@ -555,6 +588,19 @@ module ts {
                     // such a parent to be a super container, the reference must be in
                     // the *body* of the container.
                     node = node.parent;
+                    break;
+                case SyntaxKind.Decorator:
+                    // Decorators are always applied outside of the body of a class or method. 
+                    if (node.parent.kind === SyntaxKind.Parameter && isClassElement(node.parent.parent)) {
+                        // If the decorator's parent is a Parameter, we resolve the this container from
+                        // the grandparent class declaration.
+                        node = node.parent.parent;
+                    }
+                    else if (isClassElement(node.parent)) {
+                        // If the decorator's parent is a class element, we resolve the 'this' container
+                        // from the parent class declaration.
+                        node = node.parent;
+                    }
                     break;
                 case SyntaxKind.FunctionDeclaration:
                 case SyntaxKind.FunctionExpression:
@@ -642,7 +688,7 @@ module ts {
 
         return false;
     }
-    
+
     export function childIsDecorated(node: Node): boolean {
         switch (node.kind) {
             case SyntaxKind.ClassDeclaration:
@@ -742,6 +788,8 @@ module ts {
                         return node === (<TemplateSpan>parent).expression;
                     case SyntaxKind.ComputedPropertyName:
                         return node === (<ComputedPropertyName>parent).expression;
+                    case SyntaxKind.Decorator:
+                        return true;
                     default:
                         if (isExpression(parent)) {
                             return true;
@@ -754,7 +802,7 @@ module ts {
     export function isInstantiatedModule(node: ModuleDeclaration, preserveConstEnums: boolean) {
         let moduleState = getModuleInstanceState(node)
         return moduleState === ModuleInstanceState.Instantiated ||
-               (preserveConstEnums && moduleState === ModuleInstanceState.ConstEnumOnly);
+            (preserveConstEnums && moduleState === ModuleInstanceState.ConstEnumOnly);
     }
 
     export function isExternalModuleImportEqualsDeclaration(node: Node) {
@@ -907,6 +955,7 @@ module ts {
             case SyntaxKind.MethodDeclaration:
             case SyntaxKind.GetAccessor:
             case SyntaxKind.SetAccessor:
+            case SyntaxKind.MethodSignature:
             case SyntaxKind.IndexSignature:
                 return true;
             default:
@@ -1170,7 +1219,7 @@ module ts {
     export function createTextSpanFromBounds(start: number, end: number) {
         return createTextSpan(start, end - start);
     }
-    
+
     export function textChangeRangeNewSpan(range: TextChangeRange) {
         return createTextSpan(range.span.start, range.newLength);
     }
@@ -1444,13 +1493,13 @@ module ts {
             return escapedCharsMap[c] || get16BitUnicodeEscapeSequence(c.charCodeAt(0));
         }
     }
-    
+
     function get16BitUnicodeEscapeSequence(charCode: number): string {
         let hexCharCode = charCode.toString(16).toUpperCase();
         let paddedHexCode = ("0000" + hexCharCode).slice(-4);
         return "\\u" + paddedHexCode;
     }
-    
+
     let nonAsciiCharacters = /[^\u0000-\u007F]/g;
     export function escapeNonAsciiCharacters(s: string): string {
         // Replace non-ASCII characters with '\uNNNN' escapes if any exist.
@@ -1798,5 +1847,9 @@ module ts {
     export function isRightSideOfQualifiedNameOrPropertyAccess(node: Node) {
         return (node.parent.kind === SyntaxKind.QualifiedName && (<QualifiedName>node.parent).right === node) ||
             (node.parent.kind === SyntaxKind.PropertyAccessExpression && (<PropertyAccessExpression>node.parent).name === node);
+    }
+
+    export function getLocalSymbolForExportDefault(symbol: Symbol) {
+            return symbol && symbol.valueDeclaration && (symbol.valueDeclaration.flags & NodeFlags.Default) ? symbol.valueDeclaration.localSymbol : undefined;
     }
 }
