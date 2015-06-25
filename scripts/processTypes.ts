@@ -691,13 +691,13 @@ function generateFactory() {
     }
 
     function writeVisitorFunction() {
-        writer.write(`export function transformFallback<TNode extends Node>(node: TNode, cbNode: Transformer, state?: any): TNode;`);
+        writer.write(`export function transformFallback<TNode extends Node>(node: TNode, transformer: Transformer): TNode;`);
         writer.writeLine();
-        writer.write(`export function transformFallback(node: Node, cbNode: Transformer, state?: any): Node {`);
+        writer.write(`export function transformFallback(node: Node, transformer: Transformer): Node {`);
         writer.writeLine();
         writer.increaseIndent();
 
-        writer.write(`if (!node || !cbNode) return node;`);
+        writer.write(`if (!shouldTransformChildrenOfNode(node, transformer)) return node;`);
         writer.writeLine();
         
         writer.write(`switch (node.kind) {`);
@@ -722,13 +722,13 @@ function generateFactory() {
                 writer.write(`, `);
                 writer.writeLine();
                 if (member.isNodeArray) {
-                    writer.write(`transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, cbNode, state)`);
+                    writer.write(`transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
                 }
                 else if (member.isModifiersArray) {
-                    writer.write(`<ModifiersArray>transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, cbNode, state)`);
+                    writer.write(`<ModifiersArray>transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
                 }
                 else {
-                    writer.write(`transform((<${syntaxNode.symbol.name}>node).${member.symbol.name}, cbNode, state)`);
+                    writer.write(`transform((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
                 }
             }
             

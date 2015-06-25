@@ -1954,661 +1954,661 @@ namespace ts {
             return node;
         }
     }
-    export function transformFallback<TNode extends Node>(node: TNode, cbNode: Transformer, state?: any): TNode;
-    export function transformFallback(node: Node, cbNode: Transformer, state?: any): Node {
-        if (!node || !cbNode) return node;
+    export function transformFallback<TNode extends Node>(node: TNode, transformer: Transformer): TNode;
+    export function transformFallback(node: Node, transformer: Transformer): Node {
+        if (!shouldTransformChildrenOfNode(node, transformer)) return node;
         switch (node.kind) {
             case SyntaxKind.QualifiedName:
                 return factory.updateQualifiedName(
                     <QualifiedName>node, 
-                    transform((<QualifiedName>node).left, cbNode, state), 
-                    transform((<QualifiedName>node).right, cbNode, state));
+                    transform((<QualifiedName>node).left, transformer), 
+                    transform((<QualifiedName>node).right, transformer));
             case SyntaxKind.ComputedPropertyName:
                 return factory.updateComputedPropertyName(
                     <ComputedPropertyName>node, 
-                    transform((<ComputedPropertyName>node).expression, cbNode, state));
+                    transform((<ComputedPropertyName>node).expression, transformer));
             case SyntaxKind.TypeParameter:
                 return factory.updateTypeParameter(
                     <TypeParameterDeclaration>node, 
-                    transform((<TypeParameterDeclaration>node).name, cbNode, state), 
-                    transform((<TypeParameterDeclaration>node).constraint, cbNode, state), 
-                    transform((<TypeParameterDeclaration>node).expression, cbNode, state));
+                    transform((<TypeParameterDeclaration>node).name, transformer), 
+                    transform((<TypeParameterDeclaration>node).constraint, transformer), 
+                    transform((<TypeParameterDeclaration>node).expression, transformer));
             case SyntaxKind.Parameter:
                 return factory.updateParameter(
                     <ParameterDeclaration>node, 
-                    transformNodes((<ParameterDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ParameterDeclaration>node).modifiers, cbNode, state), 
-                    transform((<ParameterDeclaration>node).dotDotDotToken, cbNode, state), 
-                    transform((<ParameterDeclaration>node).name, cbNode, state), 
-                    transform((<ParameterDeclaration>node).questionToken, cbNode, state), 
-                    transform((<ParameterDeclaration>node).type, cbNode, state), 
-                    transform((<ParameterDeclaration>node).initializer, cbNode, state));
+                    transformNodes((<ParameterDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ParameterDeclaration>node).modifiers, transformer), 
+                    transform((<ParameterDeclaration>node).dotDotDotToken, transformer), 
+                    transform((<ParameterDeclaration>node).name, transformer), 
+                    transform((<ParameterDeclaration>node).questionToken, transformer), 
+                    transform((<ParameterDeclaration>node).type, transformer), 
+                    transform((<ParameterDeclaration>node).initializer, transformer));
             case SyntaxKind.Decorator:
                 return factory.updateDecorator(
                     <Decorator>node, 
-                    transform((<Decorator>node).expression, cbNode, state));
+                    transform((<Decorator>node).expression, transformer));
             case SyntaxKind.PropertySignature:
                 return factory.updatePropertySignature(
                     <PropertyDeclaration>node, 
-                    transform((<PropertyDeclaration>node).name, cbNode, state), 
-                    transform((<PropertyDeclaration>node).questionToken, cbNode, state), 
-                    transform((<PropertyDeclaration>node).type, cbNode, state));
+                    transform((<PropertyDeclaration>node).name, transformer), 
+                    transform((<PropertyDeclaration>node).questionToken, transformer), 
+                    transform((<PropertyDeclaration>node).type, transformer));
             case SyntaxKind.PropertyDeclaration:
                 return factory.updatePropertyDeclaration(
                     <PropertyDeclaration>node, 
-                    transformNodes((<PropertyDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<PropertyDeclaration>node).modifiers, cbNode, state), 
-                    transform((<PropertyDeclaration>node).name, cbNode, state), 
-                    transform((<PropertyDeclaration>node).questionToken, cbNode, state), 
-                    transform((<PropertyDeclaration>node).type, cbNode, state), 
-                    transform((<PropertyDeclaration>node).initializer, cbNode, state));
+                    transformNodes((<PropertyDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<PropertyDeclaration>node).modifiers, transformer), 
+                    transform((<PropertyDeclaration>node).name, transformer), 
+                    transform((<PropertyDeclaration>node).questionToken, transformer), 
+                    transform((<PropertyDeclaration>node).type, transformer), 
+                    transform((<PropertyDeclaration>node).initializer, transformer));
             case SyntaxKind.MethodSignature:
                 return factory.updateMethodSignature(
                     <MethodDeclaration>node, 
-                    transform((<MethodDeclaration>node).name, cbNode, state), 
-                    transform((<MethodDeclaration>node).questionToken, cbNode, state), 
-                    transformNodes((<MethodDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<MethodDeclaration>node).parameters, cbNode, state), 
-                    transform((<MethodDeclaration>node).type, cbNode, state));
+                    transform((<MethodDeclaration>node).name, transformer), 
+                    transform((<MethodDeclaration>node).questionToken, transformer), 
+                    transformNodes((<MethodDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<MethodDeclaration>node).parameters, transformer), 
+                    transform((<MethodDeclaration>node).type, transformer));
             case SyntaxKind.MethodDeclaration:
                 return factory.updateMethodDeclaration(
                     <MethodDeclaration>node, 
-                    transformNodes((<MethodDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<MethodDeclaration>node).modifiers, cbNode, state), 
-                    transform((<MethodDeclaration>node).asteriskToken, cbNode, state), 
-                    transform((<MethodDeclaration>node).name, cbNode, state), 
-                    transformNodes((<MethodDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<MethodDeclaration>node).parameters, cbNode, state), 
-                    transform((<MethodDeclaration>node).type, cbNode, state), 
-                    transform((<MethodDeclaration>node).body, cbNode, state));
+                    transformNodes((<MethodDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<MethodDeclaration>node).modifiers, transformer), 
+                    transform((<MethodDeclaration>node).asteriskToken, transformer), 
+                    transform((<MethodDeclaration>node).name, transformer), 
+                    transformNodes((<MethodDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<MethodDeclaration>node).parameters, transformer), 
+                    transform((<MethodDeclaration>node).type, transformer), 
+                    transform((<MethodDeclaration>node).body, transformer));
             case SyntaxKind.Constructor:
                 return factory.updateConstructor(
                     <ConstructorDeclaration>node, 
-                    transformNodes((<ConstructorDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ConstructorDeclaration>node).modifiers, cbNode, state), 
-                    transformNodes((<ConstructorDeclaration>node).parameters, cbNode, state), 
-                    transform((<ConstructorDeclaration>node).type, cbNode, state), 
-                    transform((<ConstructorDeclaration>node).body, cbNode, state));
+                    transformNodes((<ConstructorDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ConstructorDeclaration>node).modifiers, transformer), 
+                    transformNodes((<ConstructorDeclaration>node).parameters, transformer), 
+                    transform((<ConstructorDeclaration>node).type, transformer), 
+                    transform((<ConstructorDeclaration>node).body, transformer));
             case SyntaxKind.GetAccessor:
                 return factory.updateGetAccessor(
                     <AccessorDeclaration>node, 
-                    transformNodes((<AccessorDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<AccessorDeclaration>node).modifiers, cbNode, state), 
-                    transform((<AccessorDeclaration>node).name, cbNode, state), 
-                    transformNodes((<AccessorDeclaration>node).parameters, cbNode, state), 
-                    transform((<AccessorDeclaration>node).type, cbNode, state), 
-                    transform((<AccessorDeclaration>node).body, cbNode, state));
+                    transformNodes((<AccessorDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<AccessorDeclaration>node).modifiers, transformer), 
+                    transform((<AccessorDeclaration>node).name, transformer), 
+                    transformNodes((<AccessorDeclaration>node).parameters, transformer), 
+                    transform((<AccessorDeclaration>node).type, transformer), 
+                    transform((<AccessorDeclaration>node).body, transformer));
             case SyntaxKind.SetAccessor:
                 return factory.updateSetAccessor(
                     <AccessorDeclaration>node, 
-                    transformNodes((<AccessorDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<AccessorDeclaration>node).modifiers, cbNode, state), 
-                    transform((<AccessorDeclaration>node).name, cbNode, state), 
-                    transformNodes((<AccessorDeclaration>node).parameters, cbNode, state), 
-                    transform((<AccessorDeclaration>node).type, cbNode, state), 
-                    transform((<AccessorDeclaration>node).body, cbNode, state));
+                    transformNodes((<AccessorDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<AccessorDeclaration>node).modifiers, transformer), 
+                    transform((<AccessorDeclaration>node).name, transformer), 
+                    transformNodes((<AccessorDeclaration>node).parameters, transformer), 
+                    transform((<AccessorDeclaration>node).type, transformer), 
+                    transform((<AccessorDeclaration>node).body, transformer));
             case SyntaxKind.CallSignature:
                 return factory.updateCallSignature(
                     <SignatureDeclaration>node, 
-                    transformNodes((<SignatureDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<SignatureDeclaration>node).parameters, cbNode, state), 
-                    transform((<SignatureDeclaration>node).type, cbNode, state));
+                    transformNodes((<SignatureDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<SignatureDeclaration>node).parameters, transformer), 
+                    transform((<SignatureDeclaration>node).type, transformer));
             case SyntaxKind.ConstructSignature:
                 return factory.updateConstructSignature(
                     <SignatureDeclaration>node, 
-                    transformNodes((<SignatureDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<SignatureDeclaration>node).parameters, cbNode, state), 
-                    transform((<SignatureDeclaration>node).type, cbNode, state));
+                    transformNodes((<SignatureDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<SignatureDeclaration>node).parameters, transformer), 
+                    transform((<SignatureDeclaration>node).type, transformer));
             case SyntaxKind.IndexSignature:
                 return factory.updateIndexSignature(
                     <IndexSignatureDeclaration>node, 
-                    transformNodes((<IndexSignatureDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<IndexSignatureDeclaration>node).modifiers, cbNode, state), 
-                    transformNodes((<IndexSignatureDeclaration>node).parameters, cbNode, state), 
-                    transform((<IndexSignatureDeclaration>node).type, cbNode, state));
+                    transformNodes((<IndexSignatureDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<IndexSignatureDeclaration>node).modifiers, transformer), 
+                    transformNodes((<IndexSignatureDeclaration>node).parameters, transformer), 
+                    transform((<IndexSignatureDeclaration>node).type, transformer));
             case SyntaxKind.TypePredicate:
                 return factory.updateTypePredicate(
                     <TypePredicateNode>node, 
-                    transform((<TypePredicateNode>node).parameterName, cbNode, state), 
-                    transform((<TypePredicateNode>node).type, cbNode, state));
+                    transform((<TypePredicateNode>node).parameterName, transformer), 
+                    transform((<TypePredicateNode>node).type, transformer));
             case SyntaxKind.TypeReference:
                 return factory.updateTypeReference(
                     <TypeReferenceNode>node, 
-                    transform((<TypeReferenceNode>node).typeName, cbNode, state), 
-                    transformNodes((<TypeReferenceNode>node).typeArguments, cbNode, state));
+                    transform((<TypeReferenceNode>node).typeName, transformer), 
+                    transformNodes((<TypeReferenceNode>node).typeArguments, transformer));
             case SyntaxKind.FunctionType:
                 return factory.updateFunctionType(
                     <FunctionOrConstructorTypeNode>node, 
-                    transformNodes((<FunctionOrConstructorTypeNode>node).typeParameters, cbNode, state), 
-                    transformNodes((<FunctionOrConstructorTypeNode>node).parameters, cbNode, state), 
-                    transform((<FunctionOrConstructorTypeNode>node).type, cbNode, state));
+                    transformNodes((<FunctionOrConstructorTypeNode>node).typeParameters, transformer), 
+                    transformNodes((<FunctionOrConstructorTypeNode>node).parameters, transformer), 
+                    transform((<FunctionOrConstructorTypeNode>node).type, transformer));
             case SyntaxKind.ConstructorType:
                 return factory.updateConstructorType(
                     <FunctionOrConstructorTypeNode>node, 
-                    transformNodes((<FunctionOrConstructorTypeNode>node).typeParameters, cbNode, state), 
-                    transformNodes((<FunctionOrConstructorTypeNode>node).parameters, cbNode, state), 
-                    transform((<FunctionOrConstructorTypeNode>node).type, cbNode, state));
+                    transformNodes((<FunctionOrConstructorTypeNode>node).typeParameters, transformer), 
+                    transformNodes((<FunctionOrConstructorTypeNode>node).parameters, transformer), 
+                    transform((<FunctionOrConstructorTypeNode>node).type, transformer));
             case SyntaxKind.TypeQuery:
                 return factory.updateTypeQuery(
                     <TypeQueryNode>node, 
-                    transform((<TypeQueryNode>node).exprName, cbNode, state));
+                    transform((<TypeQueryNode>node).exprName, transformer));
             case SyntaxKind.TypeLiteral:
                 return factory.updateTypeLiteral(
                     <TypeLiteralNode>node, 
-                    transformNodes((<TypeLiteralNode>node).members, cbNode, state));
+                    transformNodes((<TypeLiteralNode>node).members, transformer));
             case SyntaxKind.ArrayType:
                 return factory.updateArrayType(
                     <ArrayTypeNode>node, 
-                    transform((<ArrayTypeNode>node).elementType, cbNode, state));
+                    transform((<ArrayTypeNode>node).elementType, transformer));
             case SyntaxKind.TupleType:
                 return factory.updateTupleType(
                     <TupleTypeNode>node, 
-                    transformNodes((<TupleTypeNode>node).elementTypes, cbNode, state));
+                    transformNodes((<TupleTypeNode>node).elementTypes, transformer));
             case SyntaxKind.UnionType:
                 return factory.updateUnionType(
                     <UnionTypeNode>node, 
-                    transformNodes((<UnionTypeNode>node).types, cbNode, state));
+                    transformNodes((<UnionTypeNode>node).types, transformer));
             case SyntaxKind.ParenthesizedType:
                 return factory.updateParenthesizedType(
                     <ParenthesizedTypeNode>node, 
-                    transform((<ParenthesizedTypeNode>node).type, cbNode, state));
+                    transform((<ParenthesizedTypeNode>node).type, transformer));
             case SyntaxKind.ObjectBindingPattern:
                 return factory.updateObjectBindingPattern(
                     <BindingPattern>node, 
-                    transformNodes((<BindingPattern>node).elements, cbNode, state));
+                    transformNodes((<BindingPattern>node).elements, transformer));
             case SyntaxKind.ArrayBindingPattern:
                 return factory.updateArrayBindingPattern(
                     <BindingPattern>node, 
-                    transformNodes((<BindingPattern>node).elements, cbNode, state));
+                    transformNodes((<BindingPattern>node).elements, transformer));
             case SyntaxKind.BindingElement:
                 return factory.updateBindingElement(
                     <BindingElement>node, 
-                    transform((<BindingElement>node).propertyName, cbNode, state), 
-                    transform((<BindingElement>node).dotDotDotToken, cbNode, state), 
-                    transform((<BindingElement>node).name, cbNode, state), 
-                    transform((<BindingElement>node).initializer, cbNode, state));
+                    transform((<BindingElement>node).propertyName, transformer), 
+                    transform((<BindingElement>node).dotDotDotToken, transformer), 
+                    transform((<BindingElement>node).name, transformer), 
+                    transform((<BindingElement>node).initializer, transformer));
             case SyntaxKind.ArrayLiteralExpression:
                 return factory.updateArrayLiteralExpression(
                     <ArrayLiteralExpression>node, 
-                    transformNodes((<ArrayLiteralExpression>node).elements, cbNode, state));
+                    transformNodes((<ArrayLiteralExpression>node).elements, transformer));
             case SyntaxKind.ObjectLiteralExpression:
                 return factory.updateObjectLiteralExpression(
                     <ObjectLiteralExpression>node, 
-                    transformNodes((<ObjectLiteralExpression>node).properties, cbNode, state));
+                    transformNodes((<ObjectLiteralExpression>node).properties, transformer));
             case SyntaxKind.PropertyAccessExpression:
                 return factory.updatePropertyAccessExpression(
                     <PropertyAccessExpression>node, 
-                    transform((<PropertyAccessExpression>node).expression, cbNode, state), 
-                    transform((<PropertyAccessExpression>node).dotToken, cbNode, state), 
-                    transform((<PropertyAccessExpression>node).name, cbNode, state));
+                    transform((<PropertyAccessExpression>node).expression, transformer), 
+                    transform((<PropertyAccessExpression>node).dotToken, transformer), 
+                    transform((<PropertyAccessExpression>node).name, transformer));
             case SyntaxKind.ElementAccessExpression:
                 return factory.updateElementAccessExpression(
                     <ElementAccessExpression>node, 
-                    transform((<ElementAccessExpression>node).expression, cbNode, state), 
-                    transform((<ElementAccessExpression>node).argumentExpression, cbNode, state));
+                    transform((<ElementAccessExpression>node).expression, transformer), 
+                    transform((<ElementAccessExpression>node).argumentExpression, transformer));
             case SyntaxKind.CallExpression:
                 return factory.updateCallExpression(
                     <CallExpression>node, 
-                    transform((<CallExpression>node).expression, cbNode, state), 
-                    transformNodes((<CallExpression>node).typeArguments, cbNode, state), 
-                    transformNodes((<CallExpression>node).arguments, cbNode, state));
+                    transform((<CallExpression>node).expression, transformer), 
+                    transformNodes((<CallExpression>node).typeArguments, transformer), 
+                    transformNodes((<CallExpression>node).arguments, transformer));
             case SyntaxKind.NewExpression:
                 return factory.updateNewExpression(
                     <NewExpression>node, 
-                    transform((<NewExpression>node).expression, cbNode, state), 
-                    transformNodes((<NewExpression>node).typeArguments, cbNode, state), 
-                    transformNodes((<NewExpression>node).arguments, cbNode, state));
+                    transform((<NewExpression>node).expression, transformer), 
+                    transformNodes((<NewExpression>node).typeArguments, transformer), 
+                    transformNodes((<NewExpression>node).arguments, transformer));
             case SyntaxKind.TaggedTemplateExpression:
                 return factory.updateTaggedTemplateExpression(
                     <TaggedTemplateExpression>node, 
-                    transform((<TaggedTemplateExpression>node).tag, cbNode, state), 
-                    transform((<TaggedTemplateExpression>node).template, cbNode, state));
+                    transform((<TaggedTemplateExpression>node).tag, transformer), 
+                    transform((<TaggedTemplateExpression>node).template, transformer));
             case SyntaxKind.TypeAssertionExpression:
                 return factory.updateTypeAssertionExpression(
                     <TypeAssertion>node, 
-                    transform((<TypeAssertion>node).type, cbNode, state), 
-                    transform((<TypeAssertion>node).expression, cbNode, state));
+                    transform((<TypeAssertion>node).type, transformer), 
+                    transform((<TypeAssertion>node).expression, transformer));
             case SyntaxKind.ParenthesizedExpression:
                 return factory.updateParenthesizedExpression(
                     <ParenthesizedExpression>node, 
-                    transform((<ParenthesizedExpression>node).expression, cbNode, state));
+                    transform((<ParenthesizedExpression>node).expression, transformer));
             case SyntaxKind.FunctionExpression:
                 return factory.updateFunctionExpression(
                     <FunctionExpression>node, 
-                    transformNodes((<FunctionExpression>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<FunctionExpression>node).modifiers, cbNode, state), 
-                    transform((<FunctionExpression>node).asteriskToken, cbNode, state), 
-                    transform((<FunctionExpression>node).name, cbNode, state), 
-                    transformNodes((<FunctionExpression>node).typeParameters, cbNode, state), 
-                    transformNodes((<FunctionExpression>node).parameters, cbNode, state), 
-                    transform((<FunctionExpression>node).type, cbNode, state), 
-                    transform((<FunctionExpression>node).body, cbNode, state));
+                    transformNodes((<FunctionExpression>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<FunctionExpression>node).modifiers, transformer), 
+                    transform((<FunctionExpression>node).asteriskToken, transformer), 
+                    transform((<FunctionExpression>node).name, transformer), 
+                    transformNodes((<FunctionExpression>node).typeParameters, transformer), 
+                    transformNodes((<FunctionExpression>node).parameters, transformer), 
+                    transform((<FunctionExpression>node).type, transformer), 
+                    transform((<FunctionExpression>node).body, transformer));
             case SyntaxKind.ArrowFunction:
                 return factory.updateArrowFunction(
                     <ArrowFunction>node, 
-                    transformNodes((<ArrowFunction>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ArrowFunction>node).modifiers, cbNode, state), 
-                    transformNodes((<ArrowFunction>node).typeParameters, cbNode, state), 
-                    transformNodes((<ArrowFunction>node).parameters, cbNode, state), 
-                    transform((<ArrowFunction>node).type, cbNode, state), 
-                    transform((<ArrowFunction>node).equalsGreaterThanToken, cbNode, state), 
-                    transform((<ArrowFunction>node).body, cbNode, state));
+                    transformNodes((<ArrowFunction>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ArrowFunction>node).modifiers, transformer), 
+                    transformNodes((<ArrowFunction>node).typeParameters, transformer), 
+                    transformNodes((<ArrowFunction>node).parameters, transformer), 
+                    transform((<ArrowFunction>node).type, transformer), 
+                    transform((<ArrowFunction>node).equalsGreaterThanToken, transformer), 
+                    transform((<ArrowFunction>node).body, transformer));
             case SyntaxKind.DeleteExpression:
                 return factory.updateDeleteExpression(
                     <DeleteExpression>node, 
-                    transform((<DeleteExpression>node).expression, cbNode, state));
+                    transform((<DeleteExpression>node).expression, transformer));
             case SyntaxKind.TypeOfExpression:
                 return factory.updateTypeOfExpression(
                     <TypeOfExpression>node, 
-                    transform((<TypeOfExpression>node).expression, cbNode, state));
+                    transform((<TypeOfExpression>node).expression, transformer));
             case SyntaxKind.VoidExpression:
                 return factory.updateVoidExpression(
                     <VoidExpression>node, 
-                    transform((<VoidExpression>node).expression, cbNode, state));
+                    transform((<VoidExpression>node).expression, transformer));
             case SyntaxKind.PrefixUnaryExpression:
                 return factory.updatePrefixUnaryExpression(
                     <PrefixUnaryExpression>node, 
-                    transform((<PrefixUnaryExpression>node).operand, cbNode, state));
+                    transform((<PrefixUnaryExpression>node).operand, transformer));
             case SyntaxKind.PostfixUnaryExpression:
                 return factory.updatePostfixUnaryExpression(
                     <PostfixUnaryExpression>node, 
-                    transform((<PostfixUnaryExpression>node).operand, cbNode, state));
+                    transform((<PostfixUnaryExpression>node).operand, transformer));
             case SyntaxKind.BinaryExpression:
                 return factory.updateBinaryExpression(
                     <BinaryExpression>node, 
-                    transform((<BinaryExpression>node).left, cbNode, state), 
-                    transform((<BinaryExpression>node).operatorToken, cbNode, state), 
-                    transform((<BinaryExpression>node).right, cbNode, state));
+                    transform((<BinaryExpression>node).left, transformer), 
+                    transform((<BinaryExpression>node).operatorToken, transformer), 
+                    transform((<BinaryExpression>node).right, transformer));
             case SyntaxKind.ConditionalExpression:
                 return factory.updateConditionalExpression(
                     <ConditionalExpression>node, 
-                    transform((<ConditionalExpression>node).condition, cbNode, state), 
-                    transform((<ConditionalExpression>node).questionToken, cbNode, state), 
-                    transform((<ConditionalExpression>node).whenTrue, cbNode, state), 
-                    transform((<ConditionalExpression>node).colonToken, cbNode, state), 
-                    transform((<ConditionalExpression>node).whenFalse, cbNode, state));
+                    transform((<ConditionalExpression>node).condition, transformer), 
+                    transform((<ConditionalExpression>node).questionToken, transformer), 
+                    transform((<ConditionalExpression>node).whenTrue, transformer), 
+                    transform((<ConditionalExpression>node).colonToken, transformer), 
+                    transform((<ConditionalExpression>node).whenFalse, transformer));
             case SyntaxKind.TemplateExpression:
                 return factory.updateTemplateExpression(
                     <TemplateExpression>node, 
-                    transform((<TemplateExpression>node).head, cbNode, state), 
-                    transformNodes((<TemplateExpression>node).templateSpans, cbNode, state));
+                    transform((<TemplateExpression>node).head, transformer), 
+                    transformNodes((<TemplateExpression>node).templateSpans, transformer));
             case SyntaxKind.YieldExpression:
                 return factory.updateYieldExpression(
                     <YieldExpression>node, 
-                    transform((<YieldExpression>node).asteriskToken, cbNode, state), 
-                    transform((<YieldExpression>node).expression, cbNode, state));
+                    transform((<YieldExpression>node).asteriskToken, transformer), 
+                    transform((<YieldExpression>node).expression, transformer));
             case SyntaxKind.SpreadElementExpression:
                 return factory.updateSpreadElementExpression(
                     <SpreadElementExpression>node, 
-                    transform((<SpreadElementExpression>node).expression, cbNode, state));
+                    transform((<SpreadElementExpression>node).expression, transformer));
             case SyntaxKind.ClassExpression:
                 return factory.updateClassExpression(
                     <ClassExpression>node, 
-                    transformNodes((<ClassExpression>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ClassExpression>node).modifiers, cbNode, state), 
-                    transform((<ClassExpression>node).name, cbNode, state), 
-                    transformNodes((<ClassExpression>node).typeParameters, cbNode, state), 
-                    transformNodes((<ClassExpression>node).heritageClauses, cbNode, state), 
-                    transformNodes((<ClassExpression>node).members, cbNode, state));
+                    transformNodes((<ClassExpression>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ClassExpression>node).modifiers, transformer), 
+                    transform((<ClassExpression>node).name, transformer), 
+                    transformNodes((<ClassExpression>node).typeParameters, transformer), 
+                    transformNodes((<ClassExpression>node).heritageClauses, transformer), 
+                    transformNodes((<ClassExpression>node).members, transformer));
             case SyntaxKind.ExpressionWithTypeArguments:
                 return factory.updateExpressionWithTypeArguments(
                     <ExpressionWithTypeArguments>node, 
-                    transform((<ExpressionWithTypeArguments>node).expression, cbNode, state), 
-                    transformNodes((<ExpressionWithTypeArguments>node).typeArguments, cbNode, state));
+                    transform((<ExpressionWithTypeArguments>node).expression, transformer), 
+                    transformNodes((<ExpressionWithTypeArguments>node).typeArguments, transformer));
             case SyntaxKind.TemplateSpan:
                 return factory.updateTemplateSpan(
                     <TemplateSpan>node, 
-                    transform((<TemplateSpan>node).expression, cbNode, state), 
-                    transform((<TemplateSpan>node).literal, cbNode, state));
+                    transform((<TemplateSpan>node).expression, transformer), 
+                    transform((<TemplateSpan>node).literal, transformer));
             case SyntaxKind.SemicolonClassElement:
                 return factory.updateSemicolonClassElement(
                     <SemicolonClassElement>node, 
-                    transformNodes((<SemicolonClassElement>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<SemicolonClassElement>node).modifiers, cbNode, state), 
-                    transform((<SemicolonClassElement>node).name, cbNode, state));
+                    transformNodes((<SemicolonClassElement>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<SemicolonClassElement>node).modifiers, transformer), 
+                    transform((<SemicolonClassElement>node).name, transformer));
             case SyntaxKind.Block:
                 return factory.updateBlock(
                     <Block>node, 
-                    transformNodes((<Block>node).statements, cbNode, state));
+                    transformNodes((<Block>node).statements, transformer));
             case SyntaxKind.VariableStatement:
                 return factory.updateVariableStatement(
                     <VariableStatement>node, 
-                    transform((<VariableStatement>node).declarationList, cbNode, state));
+                    transform((<VariableStatement>node).declarationList, transformer));
             case SyntaxKind.ExpressionStatement:
                 return factory.updateExpressionStatement(
                     <ExpressionStatement>node, 
-                    transform((<ExpressionStatement>node).expression, cbNode, state));
+                    transform((<ExpressionStatement>node).expression, transformer));
             case SyntaxKind.IfStatement:
                 return factory.updateIfStatement(
                     <IfStatement>node, 
-                    transform((<IfStatement>node).expression, cbNode, state), 
-                    transform((<IfStatement>node).thenStatement, cbNode, state), 
-                    transform((<IfStatement>node).elseStatement, cbNode, state));
+                    transform((<IfStatement>node).expression, transformer), 
+                    transform((<IfStatement>node).thenStatement, transformer), 
+                    transform((<IfStatement>node).elseStatement, transformer));
             case SyntaxKind.DoStatement:
                 return factory.updateDoStatement(
                     <DoStatement>node, 
-                    transform((<DoStatement>node).statement, cbNode, state), 
-                    transform((<DoStatement>node).expression, cbNode, state));
+                    transform((<DoStatement>node).statement, transformer), 
+                    transform((<DoStatement>node).expression, transformer));
             case SyntaxKind.WhileStatement:
                 return factory.updateWhileStatement(
                     <WhileStatement>node, 
-                    transform((<WhileStatement>node).expression, cbNode, state), 
-                    transform((<WhileStatement>node).statement, cbNode, state));
+                    transform((<WhileStatement>node).expression, transformer), 
+                    transform((<WhileStatement>node).statement, transformer));
             case SyntaxKind.ForStatement:
                 return factory.updateForStatement(
                     <ForStatement>node, 
-                    transform((<ForStatement>node).initializer, cbNode, state), 
-                    transform((<ForStatement>node).condition, cbNode, state), 
-                    transform((<ForStatement>node).incrementor, cbNode, state), 
-                    transform((<ForStatement>node).statement, cbNode, state));
+                    transform((<ForStatement>node).initializer, transformer), 
+                    transform((<ForStatement>node).condition, transformer), 
+                    transform((<ForStatement>node).incrementor, transformer), 
+                    transform((<ForStatement>node).statement, transformer));
             case SyntaxKind.ForInStatement:
                 return factory.updateForInStatement(
                     <ForInStatement>node, 
-                    transform((<ForInStatement>node).initializer, cbNode, state), 
-                    transform((<ForInStatement>node).expression, cbNode, state), 
-                    transform((<ForInStatement>node).statement, cbNode, state));
+                    transform((<ForInStatement>node).initializer, transformer), 
+                    transform((<ForInStatement>node).expression, transformer), 
+                    transform((<ForInStatement>node).statement, transformer));
             case SyntaxKind.ForOfStatement:
                 return factory.updateForOfStatement(
                     <ForOfStatement>node, 
-                    transform((<ForOfStatement>node).initializer, cbNode, state), 
-                    transform((<ForOfStatement>node).expression, cbNode, state), 
-                    transform((<ForOfStatement>node).statement, cbNode, state));
+                    transform((<ForOfStatement>node).initializer, transformer), 
+                    transform((<ForOfStatement>node).expression, transformer), 
+                    transform((<ForOfStatement>node).statement, transformer));
             case SyntaxKind.ContinueStatement:
                 return factory.updateContinueStatement(
                     <BreakOrContinueStatement>node, 
-                    transform((<BreakOrContinueStatement>node).label, cbNode, state));
+                    transform((<BreakOrContinueStatement>node).label, transformer));
             case SyntaxKind.BreakStatement:
                 return factory.updateBreakStatement(
                     <BreakOrContinueStatement>node, 
-                    transform((<BreakOrContinueStatement>node).label, cbNode, state));
+                    transform((<BreakOrContinueStatement>node).label, transformer));
             case SyntaxKind.ReturnStatement:
                 return factory.updateReturnStatement(
                     <ReturnStatement>node, 
-                    transform((<ReturnStatement>node).expression, cbNode, state));
+                    transform((<ReturnStatement>node).expression, transformer));
             case SyntaxKind.WithStatement:
                 return factory.updateWithStatement(
                     <WithStatement>node, 
-                    transform((<WithStatement>node).expression, cbNode, state), 
-                    transform((<WithStatement>node).statement, cbNode, state));
+                    transform((<WithStatement>node).expression, transformer), 
+                    transform((<WithStatement>node).statement, transformer));
             case SyntaxKind.SwitchStatement:
                 return factory.updateSwitchStatement(
                     <SwitchStatement>node, 
-                    transform((<SwitchStatement>node).expression, cbNode, state), 
-                    transform((<SwitchStatement>node).caseBlock, cbNode, state));
+                    transform((<SwitchStatement>node).expression, transformer), 
+                    transform((<SwitchStatement>node).caseBlock, transformer));
             case SyntaxKind.LabeledStatement:
                 return factory.updateLabeledStatement(
                     <LabeledStatement>node, 
-                    transform((<LabeledStatement>node).label, cbNode, state), 
-                    transform((<LabeledStatement>node).statement, cbNode, state));
+                    transform((<LabeledStatement>node).label, transformer), 
+                    transform((<LabeledStatement>node).statement, transformer));
             case SyntaxKind.ThrowStatement:
                 return factory.updateThrowStatement(
                     <ThrowStatement>node, 
-                    transform((<ThrowStatement>node).expression, cbNode, state));
+                    transform((<ThrowStatement>node).expression, transformer));
             case SyntaxKind.TryStatement:
                 return factory.updateTryStatement(
                     <TryStatement>node, 
-                    transform((<TryStatement>node).tryBlock, cbNode, state), 
-                    transform((<TryStatement>node).catchClause, cbNode, state), 
-                    transform((<TryStatement>node).finallyBlock, cbNode, state));
+                    transform((<TryStatement>node).tryBlock, transformer), 
+                    transform((<TryStatement>node).catchClause, transformer), 
+                    transform((<TryStatement>node).finallyBlock, transformer));
             case SyntaxKind.VariableDeclaration:
                 return factory.updateVariableDeclaration(
                     <VariableDeclaration>node, 
-                    transformNodes((<VariableDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<VariableDeclaration>node).modifiers, cbNode, state), 
-                    transform((<VariableDeclaration>node).name, cbNode, state), 
-                    transform((<VariableDeclaration>node).type, cbNode, state), 
-                    transform((<VariableDeclaration>node).initializer, cbNode, state));
+                    transformNodes((<VariableDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<VariableDeclaration>node).modifiers, transformer), 
+                    transform((<VariableDeclaration>node).name, transformer), 
+                    transform((<VariableDeclaration>node).type, transformer), 
+                    transform((<VariableDeclaration>node).initializer, transformer));
             case SyntaxKind.VariableDeclarationList:
                 return factory.updateVariableDeclarationList(
                     <VariableDeclarationList>node, 
-                    transformNodes((<VariableDeclarationList>node).declarations, cbNode, state));
+                    transformNodes((<VariableDeclarationList>node).declarations, transformer));
             case SyntaxKind.FunctionDeclaration:
                 return factory.updateFunctionDeclaration(
                     <FunctionDeclaration>node, 
-                    transformNodes((<FunctionDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<FunctionDeclaration>node).modifiers, cbNode, state), 
-                    transform((<FunctionDeclaration>node).asteriskToken, cbNode, state), 
-                    transform((<FunctionDeclaration>node).name, cbNode, state), 
-                    transformNodes((<FunctionDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<FunctionDeclaration>node).parameters, cbNode, state), 
-                    transform((<FunctionDeclaration>node).type, cbNode, state), 
-                    transform((<FunctionDeclaration>node).body, cbNode, state));
+                    transformNodes((<FunctionDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<FunctionDeclaration>node).modifiers, transformer), 
+                    transform((<FunctionDeclaration>node).asteriskToken, transformer), 
+                    transform((<FunctionDeclaration>node).name, transformer), 
+                    transformNodes((<FunctionDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<FunctionDeclaration>node).parameters, transformer), 
+                    transform((<FunctionDeclaration>node).type, transformer), 
+                    transform((<FunctionDeclaration>node).body, transformer));
             case SyntaxKind.ClassDeclaration:
                 return factory.updateClassDeclaration(
                     <ClassDeclaration>node, 
-                    transformNodes((<ClassDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ClassDeclaration>node).modifiers, cbNode, state), 
-                    transform((<ClassDeclaration>node).name, cbNode, state), 
-                    transformNodes((<ClassDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<ClassDeclaration>node).heritageClauses, cbNode, state), 
-                    transformNodes((<ClassDeclaration>node).members, cbNode, state));
+                    transformNodes((<ClassDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ClassDeclaration>node).modifiers, transformer), 
+                    transform((<ClassDeclaration>node).name, transformer), 
+                    transformNodes((<ClassDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<ClassDeclaration>node).heritageClauses, transformer), 
+                    transformNodes((<ClassDeclaration>node).members, transformer));
             case SyntaxKind.InterfaceDeclaration:
                 return factory.updateInterfaceDeclaration(
                     <InterfaceDeclaration>node, 
-                    transformNodes((<InterfaceDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<InterfaceDeclaration>node).modifiers, cbNode, state), 
-                    transform((<InterfaceDeclaration>node).name, cbNode, state), 
-                    transformNodes((<InterfaceDeclaration>node).typeParameters, cbNode, state), 
-                    transformNodes((<InterfaceDeclaration>node).heritageClauses, cbNode, state), 
-                    transformNodes((<InterfaceDeclaration>node).members, cbNode, state));
+                    transformNodes((<InterfaceDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<InterfaceDeclaration>node).modifiers, transformer), 
+                    transform((<InterfaceDeclaration>node).name, transformer), 
+                    transformNodes((<InterfaceDeclaration>node).typeParameters, transformer), 
+                    transformNodes((<InterfaceDeclaration>node).heritageClauses, transformer), 
+                    transformNodes((<InterfaceDeclaration>node).members, transformer));
             case SyntaxKind.TypeAliasDeclaration:
                 return factory.updateTypeAliasDeclaration(
                     <TypeAliasDeclaration>node, 
-                    transformNodes((<TypeAliasDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<TypeAliasDeclaration>node).modifiers, cbNode, state), 
-                    transform((<TypeAliasDeclaration>node).name, cbNode, state), 
-                    transformNodes((<TypeAliasDeclaration>node).typeParameters, cbNode, state), 
-                    transform((<TypeAliasDeclaration>node).type, cbNode, state));
+                    transformNodes((<TypeAliasDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<TypeAliasDeclaration>node).modifiers, transformer), 
+                    transform((<TypeAliasDeclaration>node).name, transformer), 
+                    transformNodes((<TypeAliasDeclaration>node).typeParameters, transformer), 
+                    transform((<TypeAliasDeclaration>node).type, transformer));
             case SyntaxKind.EnumDeclaration:
                 return factory.updateEnumDeclaration(
                     <EnumDeclaration>node, 
-                    transformNodes((<EnumDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<EnumDeclaration>node).modifiers, cbNode, state), 
-                    transform((<EnumDeclaration>node).name, cbNode, state), 
-                    transformNodes((<EnumDeclaration>node).members, cbNode, state));
+                    transformNodes((<EnumDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<EnumDeclaration>node).modifiers, transformer), 
+                    transform((<EnumDeclaration>node).name, transformer), 
+                    transformNodes((<EnumDeclaration>node).members, transformer));
             case SyntaxKind.ModuleDeclaration:
                 return factory.updateModuleDeclaration(
                     <ModuleDeclaration>node, 
-                    transformNodes((<ModuleDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ModuleDeclaration>node).modifiers, cbNode, state), 
-                    transform((<ModuleDeclaration>node).name, cbNode, state), 
-                    transform((<ModuleDeclaration>node).body, cbNode, state));
+                    transformNodes((<ModuleDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ModuleDeclaration>node).modifiers, transformer), 
+                    transform((<ModuleDeclaration>node).name, transformer), 
+                    transform((<ModuleDeclaration>node).body, transformer));
             case SyntaxKind.ModuleBlock:
                 return factory.updateModuleBlock(
                     <ModuleBlock>node, 
-                    transformNodes((<ModuleBlock>node).statements, cbNode, state));
+                    transformNodes((<ModuleBlock>node).statements, transformer));
             case SyntaxKind.CaseBlock:
                 return factory.updateCaseBlock(
                     <CaseBlock>node, 
-                    transformNodes((<CaseBlock>node).clauses, cbNode, state));
+                    transformNodes((<CaseBlock>node).clauses, transformer));
             case SyntaxKind.ImportEqualsDeclaration:
                 return factory.updateImportEqualsDeclaration(
                     <ImportEqualsDeclaration>node, 
-                    transformNodes((<ImportEqualsDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ImportEqualsDeclaration>node).modifiers, cbNode, state), 
-                    transform((<ImportEqualsDeclaration>node).name, cbNode, state), 
-                    transform((<ImportEqualsDeclaration>node).moduleReference, cbNode, state));
+                    transformNodes((<ImportEqualsDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ImportEqualsDeclaration>node).modifiers, transformer), 
+                    transform((<ImportEqualsDeclaration>node).name, transformer), 
+                    transform((<ImportEqualsDeclaration>node).moduleReference, transformer));
             case SyntaxKind.ImportDeclaration:
                 return factory.updateImportDeclaration(
                     <ImportDeclaration>node, 
-                    transform((<ImportDeclaration>node).importClause, cbNode, state), 
-                    transform((<ImportDeclaration>node).moduleSpecifier, cbNode, state));
+                    transform((<ImportDeclaration>node).importClause, transformer), 
+                    transform((<ImportDeclaration>node).moduleSpecifier, transformer));
             case SyntaxKind.ImportClause:
                 return factory.updateImportClause(
                     <ImportClause>node, 
-                    transformNodes((<ImportClause>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ImportClause>node).modifiers, cbNode, state), 
-                    transform((<ImportClause>node).name, cbNode, state), 
-                    transform((<ImportClause>node).namedBindings, cbNode, state));
+                    transformNodes((<ImportClause>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ImportClause>node).modifiers, transformer), 
+                    transform((<ImportClause>node).name, transformer), 
+                    transform((<ImportClause>node).namedBindings, transformer));
             case SyntaxKind.NamespaceImport:
                 return factory.updateNamespaceImport(
                     <NamespaceImport>node, 
-                    transformNodes((<NamespaceImport>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<NamespaceImport>node).modifiers, cbNode, state), 
-                    transform((<NamespaceImport>node).name, cbNode, state));
+                    transformNodes((<NamespaceImport>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<NamespaceImport>node).modifiers, transformer), 
+                    transform((<NamespaceImport>node).name, transformer));
             case SyntaxKind.NamedImports:
                 return factory.updateNamedImports(
                     <NamedImports>node, 
-                    transformNodes((<NamedImports>node).elements, cbNode, state));
+                    transformNodes((<NamedImports>node).elements, transformer));
             case SyntaxKind.ImportSpecifier:
                 return factory.updateImportSpecifier(
                     <ImportSpecifier>node, 
-                    transform((<ImportSpecifier>node).propertyName, cbNode, state), 
-                    transform((<ImportSpecifier>node).name, cbNode, state));
+                    transform((<ImportSpecifier>node).propertyName, transformer), 
+                    transform((<ImportSpecifier>node).name, transformer));
             case SyntaxKind.ExportAssignment:
                 return factory.updateExportAssignment(
                     <ExportAssignment>node, 
-                    transformNodes((<ExportAssignment>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ExportAssignment>node).modifiers, cbNode, state), 
-                    transform((<ExportAssignment>node).expression, cbNode, state));
+                    transformNodes((<ExportAssignment>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ExportAssignment>node).modifiers, transformer), 
+                    transform((<ExportAssignment>node).expression, transformer));
             case SyntaxKind.ExportDeclaration:
                 return factory.updateExportDeclaration(
                     <ExportDeclaration>node, 
-                    transformNodes((<ExportDeclaration>node).decorators, cbNode, state), 
-                    <ModifiersArray>transformNodes((<ExportDeclaration>node).modifiers, cbNode, state), 
-                    transform((<ExportDeclaration>node).exportClause, cbNode, state), 
-                    transform((<ExportDeclaration>node).moduleSpecifier, cbNode, state));
+                    transformNodes((<ExportDeclaration>node).decorators, transformer), 
+                    <ModifiersArray>transformNodes((<ExportDeclaration>node).modifiers, transformer), 
+                    transform((<ExportDeclaration>node).exportClause, transformer), 
+                    transform((<ExportDeclaration>node).moduleSpecifier, transformer));
             case SyntaxKind.NamedExports:
                 return factory.updateNamedExports(
                     <NamedExports>node, 
-                    transformNodes((<NamedExports>node).elements, cbNode, state));
+                    transformNodes((<NamedExports>node).elements, transformer));
             case SyntaxKind.ExportSpecifier:
                 return factory.updateExportSpecifier(
                     <ExportSpecifier>node, 
-                    transform((<ExportSpecifier>node).propertyName, cbNode, state), 
-                    transform((<ExportSpecifier>node).name, cbNode, state));
+                    transform((<ExportSpecifier>node).propertyName, transformer), 
+                    transform((<ExportSpecifier>node).name, transformer));
             case SyntaxKind.ExternalModuleReference:
                 return factory.updateExternalModuleReference(
                     <ExternalModuleReference>node, 
-                    transform((<ExternalModuleReference>node).expression, cbNode, state));
+                    transform((<ExternalModuleReference>node).expression, transformer));
             case SyntaxKind.CaseClause:
                 return factory.updateCaseClause(
                     <CaseClause>node, 
-                    transform((<CaseClause>node).expression, cbNode, state), 
-                    transformNodes((<CaseClause>node).statements, cbNode, state));
+                    transform((<CaseClause>node).expression, transformer), 
+                    transformNodes((<CaseClause>node).statements, transformer));
             case SyntaxKind.DefaultClause:
                 return factory.updateDefaultClause(
                     <DefaultClause>node, 
-                    transformNodes((<DefaultClause>node).statements, cbNode, state));
+                    transformNodes((<DefaultClause>node).statements, transformer));
             case SyntaxKind.HeritageClause:
                 return factory.updateHeritageClause(
                     <HeritageClause>node, 
-                    transformNodes((<HeritageClause>node).types, cbNode, state));
+                    transformNodes((<HeritageClause>node).types, transformer));
             case SyntaxKind.CatchClause:
                 return factory.updateCatchClause(
                     <CatchClause>node, 
-                    transform((<CatchClause>node).variableDeclaration, cbNode, state), 
-                    transform((<CatchClause>node).block, cbNode, state));
+                    transform((<CatchClause>node).variableDeclaration, transformer), 
+                    transform((<CatchClause>node).block, transformer));
             case SyntaxKind.PropertyAssignment:
                 return factory.updatePropertyAssignment(
                     <PropertyAssignment>node, 
-                    transform((<PropertyAssignment>node).name, cbNode, state), 
-                    transform((<PropertyAssignment>node).questionToken, cbNode, state), 
-                    transform((<PropertyAssignment>node).initializer, cbNode, state));
+                    transform((<PropertyAssignment>node).name, transformer), 
+                    transform((<PropertyAssignment>node).questionToken, transformer), 
+                    transform((<PropertyAssignment>node).initializer, transformer));
             case SyntaxKind.ShorthandPropertyAssignment:
                 return factory.updateShorthandPropertyAssignment(
                     <ShorthandPropertyAssignment>node, 
-                    transform((<ShorthandPropertyAssignment>node).name, cbNode, state), 
-                    transform((<ShorthandPropertyAssignment>node).questionToken, cbNode, state));
+                    transform((<ShorthandPropertyAssignment>node).name, transformer), 
+                    transform((<ShorthandPropertyAssignment>node).questionToken, transformer));
             case SyntaxKind.EnumMember:
                 return factory.updateEnumMember(
                     <EnumMember>node, 
-                    transform((<EnumMember>node).name, cbNode, state), 
-                    transform((<EnumMember>node).initializer, cbNode, state));
+                    transform((<EnumMember>node).name, transformer), 
+                    transform((<EnumMember>node).initializer, transformer));
             case SyntaxKind.JSDocTypeExpression:
                 return factory.updateJSDocTypeExpression(
                     <JSDocTypeExpression>node, 
-                    transform((<JSDocTypeExpression>node).type, cbNode, state));
+                    transform((<JSDocTypeExpression>node).type, transformer));
             case SyntaxKind.JSDocArrayType:
                 return factory.updateJSDocArrayType(
                     <JSDocArrayType>node, 
-                    transform((<JSDocArrayType>node).elementType, cbNode, state));
+                    transform((<JSDocArrayType>node).elementType, transformer));
             case SyntaxKind.JSDocUnionType:
                 return factory.updateJSDocUnionType(
                     <JSDocUnionType>node, 
-                    transformNodes((<JSDocUnionType>node).types, cbNode, state));
+                    transformNodes((<JSDocUnionType>node).types, transformer));
             case SyntaxKind.JSDocTupleType:
                 return factory.updateJSDocTupleType(
                     <JSDocTupleType>node, 
-                    transformNodes((<JSDocTupleType>node).types, cbNode, state));
+                    transformNodes((<JSDocTupleType>node).types, transformer));
             case SyntaxKind.JSDocNullableType:
                 return factory.updateJSDocNullableType(
                     <JSDocNullableType>node, 
-                    transform((<JSDocNullableType>node).type, cbNode, state));
+                    transform((<JSDocNullableType>node).type, transformer));
             case SyntaxKind.JSDocNonNullableType:
                 return factory.updateJSDocNonNullableType(
                     <JSDocNonNullableType>node, 
-                    transform((<JSDocNonNullableType>node).type, cbNode, state));
+                    transform((<JSDocNonNullableType>node).type, transformer));
             case SyntaxKind.JSDocRecordType:
                 return factory.updateJSDocRecordType(
                     <JSDocRecordType>node, 
-                    transformNodes((<JSDocRecordType>node).members, cbNode, state));
+                    transformNodes((<JSDocRecordType>node).members, transformer));
             case SyntaxKind.JSDocRecordMember:
                 return factory.updateJSDocRecordMember(
                     <JSDocRecordMember>node, 
-                    transform((<JSDocRecordMember>node).name, cbNode, state), 
-                    transform((<JSDocRecordMember>node).type, cbNode, state));
+                    transform((<JSDocRecordMember>node).name, transformer), 
+                    transform((<JSDocRecordMember>node).type, transformer));
             case SyntaxKind.JSDocTypeReference:
                 return factory.updateJSDocTypeReference(
                     <JSDocTypeReference>node, 
-                    transform((<JSDocTypeReference>node).name, cbNode, state), 
-                    transformNodes((<JSDocTypeReference>node).typeArguments, cbNode, state));
+                    transform((<JSDocTypeReference>node).name, transformer), 
+                    transformNodes((<JSDocTypeReference>node).typeArguments, transformer));
             case SyntaxKind.JSDocOptionalType:
                 return factory.updateJSDocOptionalType(
                     <JSDocOptionalType>node, 
-                    transform((<JSDocOptionalType>node).type, cbNode, state));
+                    transform((<JSDocOptionalType>node).type, transformer));
             case SyntaxKind.JSDocFunctionType:
                 return factory.updateJSDocFunctionType(
                     <JSDocFunctionType>node, 
-                    transformNodes((<JSDocFunctionType>node).parameters, cbNode, state), 
-                    transform((<JSDocFunctionType>node).type, cbNode, state));
+                    transformNodes((<JSDocFunctionType>node).parameters, transformer), 
+                    transform((<JSDocFunctionType>node).type, transformer));
             case SyntaxKind.JSDocVariadicType:
                 return factory.updateJSDocVariadicType(
                     <JSDocVariadicType>node, 
-                    transform((<JSDocVariadicType>node).type, cbNode, state));
+                    transform((<JSDocVariadicType>node).type, transformer));
             case SyntaxKind.JSDocConstructorType:
                 return factory.updateJSDocConstructorType(
                     <JSDocConstructorType>node, 
-                    transform((<JSDocConstructorType>node).type, cbNode, state));
+                    transform((<JSDocConstructorType>node).type, transformer));
             case SyntaxKind.JSDocThisType:
                 return factory.updateJSDocThisType(
                     <JSDocThisType>node, 
-                    transform((<JSDocThisType>node).type, cbNode, state));
+                    transform((<JSDocThisType>node).type, transformer));
             case SyntaxKind.JSDocComment:
                 return factory.updateJSDocComment(
                     <JSDocComment>node, 
-                    transformNodes((<JSDocComment>node).tags, cbNode, state));
+                    transformNodes((<JSDocComment>node).tags, transformer));
             case SyntaxKind.JSDocTag:
                 return factory.updateJSDocTag(
                     <JSDocTag>node, 
-                    transform((<JSDocTag>node).atToken, cbNode, state), 
-                    transform((<JSDocTag>node).tagName, cbNode, state));
+                    transform((<JSDocTag>node).atToken, transformer), 
+                    transform((<JSDocTag>node).tagName, transformer));
             case SyntaxKind.JSDocParameterTag:
                 return factory.updateJSDocParameterTag(
                     <JSDocParameterTag>node, 
-                    transform((<JSDocParameterTag>node).preParameterName, cbNode, state), 
-                    transform((<JSDocParameterTag>node).typeExpression, cbNode, state), 
-                    transform((<JSDocParameterTag>node).postParameterName, cbNode, state), 
-                    transform((<JSDocParameterTag>node).atToken, cbNode, state), 
-                    transform((<JSDocParameterTag>node).tagName, cbNode, state));
+                    transform((<JSDocParameterTag>node).preParameterName, transformer), 
+                    transform((<JSDocParameterTag>node).typeExpression, transformer), 
+                    transform((<JSDocParameterTag>node).postParameterName, transformer), 
+                    transform((<JSDocParameterTag>node).atToken, transformer), 
+                    transform((<JSDocParameterTag>node).tagName, transformer));
             case SyntaxKind.JSDocReturnTag:
                 return factory.updateJSDocReturnTag(
                     <JSDocReturnTag>node, 
-                    transform((<JSDocReturnTag>node).typeExpression, cbNode, state), 
-                    transform((<JSDocReturnTag>node).atToken, cbNode, state), 
-                    transform((<JSDocReturnTag>node).tagName, cbNode, state));
+                    transform((<JSDocReturnTag>node).typeExpression, transformer), 
+                    transform((<JSDocReturnTag>node).atToken, transformer), 
+                    transform((<JSDocReturnTag>node).tagName, transformer));
             case SyntaxKind.JSDocTypeTag:
                 return factory.updateJSDocTypeTag(
                     <JSDocTypeTag>node, 
-                    transform((<JSDocTypeTag>node).typeExpression, cbNode, state), 
-                    transform((<JSDocTypeTag>node).atToken, cbNode, state), 
-                    transform((<JSDocTypeTag>node).tagName, cbNode, state));
+                    transform((<JSDocTypeTag>node).typeExpression, transformer), 
+                    transform((<JSDocTypeTag>node).atToken, transformer), 
+                    transform((<JSDocTypeTag>node).tagName, transformer));
             case SyntaxKind.JSDocTemplateTag:
                 return factory.updateJSDocTemplateTag(
                     <JSDocTemplateTag>node, 
-                    transformNodes((<JSDocTemplateTag>node).typeParameters, cbNode, state), 
-                    transform((<JSDocTemplateTag>node).atToken, cbNode, state), 
-                    transform((<JSDocTemplateTag>node).tagName, cbNode, state));
+                    transformNodes((<JSDocTemplateTag>node).typeParameters, transformer), 
+                    transform((<JSDocTemplateTag>node).atToken, transformer), 
+                    transform((<JSDocTemplateTag>node).tagName, transformer));
             default:
                 return node;
         }

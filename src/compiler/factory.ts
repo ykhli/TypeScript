@@ -42,57 +42,70 @@ namespace ts {
         }
     }
     
-    export type Transformer = <TNode extends Node>(node: TNode, state?: any) => TNode;
-    
-    export function transform<TNode extends Node>(node: TNode, cbNode: Transformer, state?: any) {
-        if (!node || !transform) {
-            return node;
-        }
-
-        return cbNode(node, state);
-    }
-
-    export interface TransformNodesOptions<TNode extends Node> {
-        shouldCacheNode?(node: TNode, state?: any): boolean;
-        cacheNode?(node: TNode, state?: any): TNode;
+    export interface Transformer {
+        transform<TNode extends Node>(node: TNode): TNode;
+        shouldTransformNode?(node: Node): boolean;
+        shouldTransformChildrenOfNode?(node: Node): boolean;
+        shouldCachePreviousNodes?(node: Node): boolean;
+        cacheNode? <TNode extends Node>(node: TNode): TNode;
         removeMissingNodes?: boolean;
     }
     
-    export function transformNodes<TNode extends Node>(nodes: NodeArray<TNode>, cbNode: Transformer, state?: any, options?: TransformNodesOptions<TNode>): NodeArray<TNode> {
-        if (!nodes || !cbNode) {
+    export function transform<TNode extends Node>(node: TNode, transformer: Transformer) {
+        return shouldTransformNode(node, transformer) ? transformNode(node, transformer) 
+            : shouldTransformChildrenOfNode(node, transformer) ? transformFallback(node, transformer)
+            : node;
+    }
+
+    /* @internal */
+    export function shouldTransformNode(node: Node, transformer: Transformer) {
+        return node ? transformer && transformer.shouldTransformNode ? transformer.shouldTransformNode(node) : true : false;
+    }
+    
+    /* @internal */
+    export function shouldTransformChildrenOfNode(node: Node, transformer: Transformer) {
+        return node && transformer && transformer.shouldTransformChildrenOfNode ? transformer.shouldTransformChildrenOfNode(node) : false;
+    }
+    
+    function shouldCachePreviousNodes(node: Node, transformer: Transformer) {
+        return node && transformer && transformer.shouldCachePreviousNodes ? transformer.shouldCachePreviousNodes(node) : false;
+    }
+    
+    function transformNode<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
+        return node && transformer && transformer.transform ? transformer.transform(node) : node;
+    }
+    
+    function cacheNode<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
+        return node && transformer && transformer.cacheNode ? transformer.cacheNode(node) : node;
+    }
+    
+    export function transformNodes<TNode extends Node>(nodes: NodeArray<TNode>, transformer: Transformer): NodeArray<TNode> {
+        if (!nodes || !transformer) {
             return nodes;
         }
 
         let updatedNodes: TNode[];
         let updatedOffset = 0;
         let cacheOffset = 0;
-        let removeMissingNodes: boolean;
-        let shouldCacheNode: (node: TNode, state?: any) => boolean;
-        let cacheNode: (node: TNode, state?: any) => TNode;
+        let removeMissingNodes = transformer.removeMissingNodes;
         
-        if (options) {
-            removeMissingNodes = options.removeMissingNodes;
-            shouldCacheNode = options.shouldCacheNode;
-            cacheNode = options.cacheNode;
-        }
-
         for (var i = 0; i < nodes.length; i++) {
             let updatedIndex = i - updatedOffset;
             let node = nodes[i];
-            if (shouldCacheNode && shouldCacheNode(node, state)) {
+            if (shouldCachePreviousNodes(node, transformer)) {
                 if (!updatedNodes) {
                     updatedNodes = nodes.slice(0, i);
                 }
 
                 while (cacheOffset < updatedIndex) {
-                    updatedNodes[cacheOffset] = cacheNode(updatedNodes[cacheOffset], state);
+                    updatedNodes[cacheOffset] = cacheNode(updatedNodes[cacheOffset], transformer);
                     cacheOffset++;
                 }
 
                 cacheOffset = updatedIndex;
             }
             
-            let updatedNode = node ? cbNode(node, state) : undefined;
+            let updatedNode = transform(node, transformer);
             if ((updatedNodes || updatedNode !== node || (!updatedNode && removeMissingNodes))) {
                 if (!updatedNodes) {
                     updatedNodes = nodes.slice(0, i);
