@@ -42,38 +42,23 @@ namespace ts {
         }
     }
     
-    type Visitor = <TNode extends Node>(node: TNode, state?: any) => TNode;
+    export type Transformer = <TNode extends Node>(node: TNode, state?: any) => TNode;
     
-    export function visit<TNode extends Node>(node: TNode, transform: Visitor, state?: any) {
+    export function transform<TNode extends Node>(node: TNode, cbNode: Transformer, state?: any) {
         if (!node || !transform) {
             return node;
         }
 
-        return transform(node, state);
+        return cbNode(node, state);
     }
 
-    export interface VisitNodesOptions<TNode extends Node> {
+    export interface TransformNodesOptions<TNode extends Node> {
         shouldCacheNode?(node: TNode, state?: any): boolean;
         cacheNode?(node: TNode, state?: any): TNode;
         removeMissingNodes?: boolean;
     }
     
-    export function visitModifiers(modifiers: ModifiersArray, cbNode: Visitor, state?: any): ModifiersArray {
-        let visited = <ModifiersArray>visitNodes(modifiers, cbNode, undefined, state);
-        if (visited !== modifiers) {
-            let flags: NodeFlags = 0;
-            for (let modifier of visited) {
-                flags |= modifierToFlag(modifier.kind);
-            }
-            
-            visited.flags = flags;
-            return visited;
-        }
-        
-        return modifiers;
-    }
-
-    export function visitNodes<TNode extends Node>(nodes: NodeArray<TNode>, cbNode: Visitor, options?: VisitNodesOptions<TNode>, state?: any): NodeArray<TNode> {
+    export function transformNodes<TNode extends Node>(nodes: NodeArray<TNode>, cbNode: Transformer, state?: any, options?: TransformNodesOptions<TNode>): NodeArray<TNode> {
         if (!nodes || !cbNode) {
             return nodes;
         }

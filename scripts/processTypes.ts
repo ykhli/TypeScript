@@ -449,19 +449,19 @@ function generateFactory() {
     writer.write(`export namespace factory {`);
     writer.writeLine();
     writer.increaseIndent();
-    writeHelperFunctions();
+    writeFactoryHelperFunctions();
     writeCreateAndUpdateFunctions();
-    //writeForEachChildFunction();
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();
+    writeVisitorFunction();
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();
     
     sys.writeFile(sys.resolvePath(combinePaths(__dirname, "../src/compiler/factory.generated.ts")), writer.getText());
     
-    function writeHelperFunctions() {
+    function writeFactoryHelperFunctions() {
         writer.rawWrite(`        function setModifiers(node: Node, modifiers: ModifiersArray) {
             if (modifiers) {
                 node.flags |= modifiers.flags;
@@ -689,104 +689,67 @@ function generateFactory() {
         writer.write(`}`);
         writer.writeLine();
     }
-    
-    // function writeForEachChildFunction() {
-    //     writer.write(`export function forEachChild<T>(node: Node, cbNode: (node: Node) => T, cbNodeArray?: (nodes: Node[]) => T): T {`);
-    //     writer.writeLine();
-    //     writer.increaseIndent();
-    //     writer.write(`if (!node) return;`);
-    //     writer.writeLine();
-    //     writer.write(`let visitNodes: (cb: (node: Node | Node[]) => T, nodes: Node[]) => T = cbNodeArray ? visitNodeArray : visitEachNode;`);
-    //     writer.writeLine();
-    //     writer.write(`let cbNodes = cbNodeArray || cbNode;`);
-    //     writer.writeLine();
-    //     writer.write(`switch (node.kind) {`);
-    //     writer.writeLine();
-    //     writer.increaseIndent();
-    //     for (let syntaxNode of syntax) {
-    //         if (!syntaxNode.hasChildren) continue;
-    //         writer.write(`case SyntaxKind.${syntaxNode.kind.name}:`);
-    //         writer.writeLine();
-    //         writer.increaseIndent();
-    //         let first = true;
-    //         for (let member of syntaxNode.members) {
-    //             if (!member.isChild) continue;
-    //             if (first) {
-    //                 writer.write(`return `);
-    //             }
-    //             else {
-    //                 writer.write(` ||`);
-    //                 writer.writeLine();
-    //             }
-                
-    //             if (member.isModifiersArray || member.isNodeArray) {
-    //                 writer.write(`visitNodes(cbNodes, (<${syntaxNode.symbol.name}>node).${member.symbol.name})`);
-    //             }
-    //             else {
-    //                 writer.write(`visitNode(cbNode, (<${syntaxNode.symbol.name}>node).${member.symbol.name})`);
-    //             }
-                
-    //             if (first) {
-    //                 writer.increaseIndent();
-    //                 first = false;
-    //             }
-    //         }
-            
-    //         if (!first) {
-    //             writer.writeLine();
-    //             writer.decreaseIndent();
-    //         }
-            
-    //         writer.decreaseIndent();
-    //     }
+
+    function writeVisitorFunction() {
+        writer.write(`export function transformFallback<TNode extends Node>(node: TNode, cbNode: Transformer, state?: any): TNode;`);
+        writer.writeLine();
+        writer.write(`export function transformFallback(node: Node, cbNode: Transformer, state?: any): Node {`);
+        writer.writeLine();
+        writer.increaseIndent();
+
+        writer.write(`if (!node || !cbNode) return node;`);
+        writer.writeLine();
         
-    //     writer.decreaseIndent();
-    //     writer.write(`}`);
-    //     writer.writeLine();
-    //     writer.decreaseIndent();
-    //     writer.write(`}`);
-    //     writer.writeLine();
-    // }
+        writer.write(`switch (node.kind) {`);
+        writer.writeLine();
+        writer.increaseIndent();
+        
+        for (let syntaxNode of syntax) {
+            if (!syntaxNode.hasChildren || syntaxNode.kind.name === "SourceFile") {
+                continue;
+            }
+            
+            writer.write(`case SyntaxKind.${syntaxNode.kind.name}:`);
+            writer.writeLine();
+            writer.increaseIndent();
+            
+            writer.write(`return factory.update${syntaxNode.kind.name}(`);
+            writer.writeLine();
+            writer.increaseIndent();
+            writer.write(`<${syntaxNode.symbol.name}>node`);
+            
+            for (let member of syntaxNode.members) {
+                writer.write(`, `);
+                writer.writeLine();
+                if (member.isNodeArray) {
+                    writer.write(`transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, cbNode, state)`);
+                }
+                else if (member.isModifiersArray) {
+                    writer.write(`<ModifiersArray>transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, cbNode, state)`);
+                }
+                else {
+                    writer.write(`transform((<${syntaxNode.symbol.name}>node).${member.symbol.name}, cbNode, state)`);
+                }
+            }
+            
+            writer.write(`);`);
+            writer.writeLine();
+            writer.decreaseIndent();
+            writer.decreaseIndent();
+        }
+        
+        writer.write(`default:`);
+        writer.writeLine();
+        writer.increaseIndent();
+        writer.write(`return node;`);
+        writer.writeLine();
+        writer.decreaseIndent();        
+        writer.decreaseIndent();
+        writer.write(`}`);
+        writer.writeLine();
+        
+        writer.decreaseIndent();
+        writer.write('}');
+        writer.writeLine();
+    }
 }
-
-// function writeCreateFunction(node: InterfaceDeclaration | TypeAliasDeclaration, kind: string) {
-//     writer.write(`export function create${kind}(`);
-//     writeCreateFunctionParameters(node);
-//     writer.write(`): ${node.name.getText()} {`);
-//     writer.writeLine();
-//     writer.increaseIndent();
-//     writeCreateFunctionBody(node, kind);
-//     writer.decreaseIndent();
-//     writer.write(`}`);
-//     writer.writeLine();
-//     writer.writeLine();
-// }
-
-// function writeCreateFunctionParameters(node: InterfaceDeclaration | TypeAliasDeclaration) {
-//     if (node.kind === SyntaxKind.InterfaceDeclaration) {
-//         writeCreateFunctionParametersForInterface(<InterfaceDeclaration>node);
-//     }
-// }
-
-// function getMembersForInterface(node: InterfaceDeclaration) {
-//     let members: SyntaxMember[];
-//     for (let member of node.members) {
-//         if (member.kind === SyntaxKind.PropertySignature) {
-//             let property = <PropertyDeclaration>member;
-            
-//         }
-//     }
-// }
-
-// function writeCreateFunctionParametersForInterface(node: InterfaceDeclaration) {
-//     for (let member of node.members) {
-//         if (member.kind === SyntaxKind.PropertySignature) {
-//             let property = <PropertyDeclaration>member;
-            
-//         }
-//     }
-// }
-
-// function writeCreateFunctionBody(node: InterfaceDeclaration | TypeAliasDeclaration, kind: string) {
-    
-// }
