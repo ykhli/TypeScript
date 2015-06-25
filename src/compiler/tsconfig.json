@@ -16,10 +16,12 @@
         "utilities.ts",
         "binder.ts",
         "checker.ts",
+        "factory.ts",
         "emitter.ts",
         "program.ts",
         "commandLineParser.ts",
         "tsc.ts",
-        "diagnosticInformationMap.generated.ts"
+        "diagnosticInformationMap.generated.ts",
+        "factory.generated.ts"
     ]
 }

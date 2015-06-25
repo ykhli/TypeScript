@@ -35,6 +35,8 @@ var compilerSources = [
     "sys.ts",
     "types.ts",
     "scanner.ts",
+    "factory.ts",
+    "factory.generated.ts",
     "parser.ts",
     "utilities.ts",
     "binder.ts",
@@ -341,6 +343,39 @@ file(diagnosticInfoMapTs, [processDiagnosticMessagesJs, diagnosticMessagesJson],
 desc("Generates a diagnostic file in TypeScript based on an input JSON file");
 task("generate-diagnostics", [diagnosticInfoMapTs])
 
+var processTypesJs = path.join(scriptsDirectory, "processTypes.js");
+var processTypesTs = path.join(scriptsDirectory, "processTypes.ts");
+var typesTs = path.join(compilerDirectory, "types.ts");
+var factoryGeneratedTs = path.join(compilerDirectory, "factory.generated.ts");
+
+file(processTypesTs);
+
+// processTypes script
+compileFile(processTypesJs, 
+            [processTypesTs],
+            [processTypesTs],
+            [],
+            /*useBuiltCompiler*/ false,
+            /*noOutFile*/ true);
+
+file(factoryGeneratedTs, [processTypesJs, typesTs], function () {
+    var cmd = "node " + processTypesJs;
+    console.log(cmd);
+    var ex = jake.createExec([cmd]);
+    // Add listeners for output and error
+    ex.addListener("stdout", function(output) {
+        process.stdout.write(output);
+    });
+    ex.addListener("stderr", function(error) {
+        process.stderr.write(error);
+    });
+    ex.addListener("cmdEnd", function() {
+        complete();
+    });
+    ex.run();
+}, { async: true });
+
+task("generate-factory", [factoryGeneratedTs]);
 
 // Local target to build the compiler and services
 var tscFile = path.join(builtLocalDirectory, compilerFilename);
@@ -393,11 +428,11 @@ task("lssl", [lsslFile]);
 
 // Local target to build the compiler and services
 desc("Builds the full compiler and services");
-task("local", ["generate-diagnostics", "lib", tscFile, servicesFile, nodeDefinitionsFile, serverFile]);
+task("local", ["generate-diagnostics", "generate-factory", "lib", tscFile, servicesFile, nodeDefinitionsFile, serverFile]);
 
 // Local target to build only tsc.js
 desc("Builds only the compiler");
-task("tsc", ["generate-diagnostics", "lib", tscFile]);
+task("tsc", ["generate-diagnostics", "generate-factory", "lib", tscFile]);
 
 // Local target to build the compiler and services
 desc("Sets release mode flag");
