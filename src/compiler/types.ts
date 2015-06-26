@@ -398,96 +398,180 @@ namespace ts {
     
     /* @internal */
     export const enum TransformFlags {
-        ThisNodeNeedsES6Transform = 1 << 1,
-        ThisNodeNeedsES5Transform = 1 << 2,
-        ThisNodeNeedsModuleTransform = 1 << 3,
-        ThisNodeNeedsCapturedThis = 1 << 4,
-        ThisNodeNeedsTransformMask = 
-            ThisNodeNeedsES6Transform |
-            ThisNodeNeedsES5Transform |
-            ThisNodeNeedsModuleTransform |
-            ThisNodeNeedsCapturedThis,
+        TypeScript = 1 << 1,
+        ContainsTypeScript = 1 << 2,
         
-        // TypeScript to ES6 transforms
-        ThisNodeOrAnySubNodesContainsDecorator = 1 << 5,
-        ThisNodeOrAnySubNodesContainsTypeScript = 1 << 6,
-        ThisNodeOrAnySubNodesNeedsES6TransformMask = 
-            ThisNodeNeedsES6Transform |
-            ThisNodeOrAnySubNodesContainsDecorator |
-            ThisNodeOrAnySubNodesContainsTypeScript,
+        ES7 = 1 << 3,
+        ContainsES7 = 1 << 4,
         
-        // ES6 to ES5 transforms
-        ThisNodeOrAnySubNodesContainsYield = 1 << 7,
-        ThisNodeOrAnySubNodesContainsBindingPattern = 1 << 8,
-        ThisNodeOrAnySubNodesContainsRestArgument = 1 << 9,
-        ThisNodeOrAnySubNodesContainsInitializer = 1 << 10,
-        ThisNodeOrAnySubNodesContainsSpreadElement = 1 << 11,
-        ThisNodeOrAnySubNodesContainsLetOrConst = 1 << 12,
-        ThisNodeOrAnySubNodesContainsES6 = 1 << 13,
-        ThisNodeOrAnySubNodesContainsCapturedThis = 1 << 14,
-        ThisNodeOrAnySubNodesNeedsES5TransformMask = 
-            ThisNodeNeedsES5Transform |
-            ThisNodeNeedsCapturedThis |
-            ThisNodeOrAnySubNodesContainsYield |
-            ThisNodeOrAnySubNodesContainsBindingPattern |
-            ThisNodeOrAnySubNodesContainsRestArgument |
-            ThisNodeOrAnySubNodesContainsSpreadElement |
-            ThisNodeOrAnySubNodesContainsLetOrConst |
-            ThisNodeOrAnySubNodesContainsCapturedThis |
-            ThisNodeOrAnySubNodesContainsES6,
-            
-        // Helper flags
-        ThisNodeOrAnySubNodesContainsThis = 1 << 13,
+        ES6 = 1 << 5,
+        CaptureThis = 1 << 6,
+        ContainsES6 = 1 << 7,
+        ContainsYield = 1 << 8,
+        ContainsBindingPattern = 1 << 9,
+        ContainsRestArgument = 1 << 10,
+        ContainsInitializer = 1 << 11,
+        ContainsSpreadElement = 1 << 12,
+        ContainsLetOrConst = 1 << 13,
+        ContainsCapturedThis = 1 << 14,
+        ContainsLexicalThis = 1 << 15,
+        ContainsHoistedDeclaration = 1 << 16,
         
-        // Module transforms
-        ThisNodeOrAnySubNodesContainsImportOrExport = 1 << 14,
-        ThisNodeOrAnySubNodesContainsImportOrExportEquals = 1 << 14,
-        ThisNodeOrAnySubNodesContainsModule = 1 << 15,
-        ThisNodeOrAnySubNodesNeedsModuleTransformMask =
-            ThisNodeNeedsModuleTransform |
-            ThisNodeOrAnySubNodesContainsImportOrExport |
-            ThisNodeOrAnySubNodesContainsImportOrExportEquals |
-            ThisNodeOrAnySubNodesContainsModule,
+        // Temporary, to be removed
+        ContainsGeneratorFunction = 1 << 17,
+        GeneratorFunction = 1 << 18,
 
-        // A mask for all transforms
-        ThisNodeOrAnySubNodesNeedsTransformMask = 
-            ThisNodeOrAnySubNodesNeedsES6TransformMask |
-            ThisNodeOrAnySubNodesNeedsES5TransformMask |
-            ThisNodeOrAnySubNodesNeedsModuleTransformMask,
+        // TypeScript Syntax Features that need down-level transformation
+        ThisNodeIsTypeScript = TypeScript | ContainsTypeScript,
+        ThisNodeIsTypeScriptPropertyDeclaration = ThisNodeIsTypeScript,
+        ThisNodeIsTypeScriptEnumDeclaration = ThisNodeIsTypeScript | ContainsHoistedDeclaration,
+        ThisNodeIsTypeScriptModuleDeclaration = ThisNodeIsTypeScript,
+        ThisNodeIsTypeScriptImportEqualsDeclaration = ThisNodeIsTypeScript,
+        ThisNodeIsTypeScriptExportAssignmentDeclaration = ThisNodeIsTypeScript,
+        ThisNodeIsTypeScriptDecorator = ThisNodeIsTypeScript,
+        
+        // ES7 Syntax Features that need down-level transformation
+        ThisNodeIsES7 = ES7 | ContainsES7,
+        
+        // ES6 Syntax Features that need down-level transformation
+        ThisNodeIsES6 = ES6 | ContainsES6,
+        ThisNodeIsES6Yield = ThisNodeIsES6 |ContainsYield,
+        ThisNodeIsES6BindingPattern = ThisNodeIsES6 | ContainsBindingPattern,
+        ThisNodeIsES6RestArgument = ThisNodeIsES6 | ContainsRestArgument,
+        ThisNodeIsES6Initializer = ThisNodeIsES6 | ContainsInitializer,
+        ThisNodeIsES6SpreadElement = ThisNodeIsES6 | ContainsSpreadElement,
+        ThisNodeIsES6LetOrConst = ThisNodeIsES6 | ContainsLetOrConst | ContainsHoistedDeclaration,
+        ThisNodeIsES6ArrowFunction = ThisNodeIsES6,
+        ThisNodeIsES6GeneratorFunction = ThisNodeIsES6 | GeneratorFunction,
+        ThisNodeIsES6ClassDeclaration = ThisNodeIsES6 | ContainsHoistedDeclaration,
+        ThisNodeIsES6ClassExpression = ThisNodeIsES6,
+        ThisNodeIsES6ClassAccessor = ThisNodeIsES6,
+        ThisNodeIsES6Method = ThisNodeIsES6,
+        ThisNodeIsES6ClassConstructor = ThisNodeIsES6,
+        ThisNodeIsES6DestructuringAssignment = ThisNodeIsES6,
+        ThisNodeIsES6ComputedPropertyName = ThisNodeIsES6,
+        ThisNodeIsES6ShorthandPropertyName = ThisNodeIsES6,
+        ThisNodeIsES6ForOfStatement = ThisNodeIsES6,
+        ThisNodeIsES6ImportDeclaration = ThisNodeIsES6,
+        ThisNodeIsES6ExportDeclaration = ThisNodeIsES6,
+        ThisNodeIsES6Export = ThisNodeIsES6,
+        ThisNodeIsES6NoSubstitutionTemplateLiteral = ThisNodeIsES6,
+        ThisNodeIsES6TemplateExpression = ThisNodeIsES6,
+        ThisNodeIsES6TaggedTemplateExpression = ThisNodeIsES6,
+        ThisNodeIsES6BinaryOrOctalLiteralExpression = ThisNodeIsES6,
+        
+        // Markers for down-level transformations
+        ThisNodeNeedsToCaptureThis = CaptureThis,
+        ThisNodeCapturesLexicalThis = ContainsCapturedThis,
+        ThisNodeIsFunctionDeclaration = ContainsHoistedDeclaration,
+        ThisNodeIsVariableDeclarationList = ContainsHoistedDeclaration,
+        ThisNodeIsThisKeyword = ContainsLexicalThis,
+        
+        // Mask used to test for TypeScript nodes that need transformation
+        ThisNodeIsTypeScriptMask =
+            TypeScript,
             
-        // Transforms to exclude at a function boundary
-        FunctionScopeExcludes =
-            ThisNodeOrAnySubNodesContainsYield |
-            ThisNodeOrAnySubNodesContainsBindingPattern |
-            ThisNodeOrAnySubNodesContainsRestArgument |
-            ThisNodeOrAnySubNodesContainsInitializer |
-            ThisNodeOrAnySubNodesContainsLetOrConst |
-            ThisNodeOrAnySubNodesContainsThis |
-            ThisNodeOrAnySubNodesContainsCapturedThis,
+        ThisNodeNeedsTransfomToES7 =
+            ThisNodeIsTypeScriptMask,
+            
+        // Mask used to test for ES7 nodes that need transformation
+        ThisNodeIsES7Mask =
+            ES7,
+            
+        ThisNodeNeedsTransformToES6 =
+            ThisNodeIsES7Mask,
 
-        // Transforms to exclude at an arrow function boundary
+        // Mask used to test for ES6 nodes that need transformation
+        ThisNodeIsES6Mask =
+            ES6 |
+            CaptureThis,
+            
+        ThisNodeNeedsTransformToES5 =
+            ThisNodeIsES6Mask,
+
+        // Mask used to clear transform flags that are specific to a single node
+        ThisNodeNeedsTransformMask =
+            ThisNodeIsTypeScriptMask |
+            ThisNodeIsES7Mask |
+            ThisNodeIsES6Mask,
+
+        // Mask used to test for TypeScript nodes in a subtree that need transformation
+        SubtreeContainsTypeScriptMask = 
+            ThisNodeIsTypeScriptMask |
+            ContainsTypeScript,
+            
+        SubtreeNeedsTransformToES7 =
+            SubtreeContainsTypeScriptMask,
+            
+        // Mask used to test for ES7 nodes in a subtree that need transformation
+        SubtreeContainsES7Mask =
+            ThisNodeIsES7Mask |
+            ContainsES7,
+            
+        SubtreeNeedsTransformToES6 =
+            SubtreeContainsES7Mask,
+
+        // Mask used to test for ES6 nodes in a subtree that need transformation
+        SubtreeContainsES6Mask = 
+            ThisNodeIsES6Mask |
+            ContainsES6,
+        
+        SubtreeNeedsTransformToES5 =
+            SubtreeContainsES6Mask,
+        
+        // Mask used to test for whether any nodes in a subtree need transformation
+        SubtreeNeedsTransformMask = 
+            SubtreeNeedsTransformToES7 |
+            SubtreeNeedsTransformToES6 |
+            SubtreeNeedsTransformToES5,
+
+        // Mask used to test for whether any nodes in a subtree beneath a parameter declaration
+        // need transformation 
+        ThisParameterNeedsTransformMask =
+            ContainsBindingPattern |
+            ContainsRestArgument |
+            ContainsInitializer,
+
+        // Transforms to exclude when existing an arrow function boundary
         ArrowFunctionScopeExcludes =
-            ThisNodeOrAnySubNodesContainsYield |
-            ThisNodeOrAnySubNodesContainsBindingPattern |
-            ThisNodeOrAnySubNodesContainsRestArgument |
-            ThisNodeOrAnySubNodesContainsInitializer |
-            ThisNodeOrAnySubNodesContainsLetOrConst |
-            ThisNodeOrAnySubNodesContainsThis,
+            ContainsYield |
+            ContainsBindingPattern |
+            ContainsRestArgument |
+            ContainsInitializer |
+            ContainsLetOrConst |
+            ContainsHoistedDeclaration,
+
+        // Transforms to exclude when exiting a function-like boundary
+        FunctionScopeExcludes =
+            ArrowFunctionScopeExcludes |
+            ContainsLexicalThis |
+            ContainsCapturedThis,
             
         // Transforms to exclude at a module boundary
         ModuleScopeExcludes =
-            ThisNodeOrAnySubNodesContainsLetOrConst |
-            ThisNodeOrAnySubNodesContainsThis |
-            ThisNodeOrAnySubNodesContainsCapturedThis, 
+            ContainsLetOrConst |
+            ContainsLexicalThis |
+            ContainsCapturedThis |
+            ContainsBindingPattern |
+            ContainsHoistedDeclaration, 
             
-        // Transform to exclude at a call, new, or array literal expression
+        // Transform to exclude when exiting  call, new, or array literal expression boundary
         CallOrArrayLiteralExcludes =
-            ThisNodeOrAnySubNodesContainsSpreadElement,
-            
-        FunctionParameterMask =
-            ThisNodeOrAnySubNodesContainsBindingPattern |
-            ThisNodeOrAnySubNodesContainsRestArgument |
-            ThisNodeOrAnySubNodesContainsInitializer,
+            ContainsSpreadElement,
+    }
+
+    export type Transformation = (resolver: TransformResolver, statements: NodeArray<Statement>) => NodeArray<Statement>;
+
+    export const enum TransformerScope {
+        None,
+        Function
+    }
+
+    export interface TransformResolver {
+        getGeneratedNameForNode(node: Node): string;
+        makeTempVariableName(): string;
+        makeUniqueName(baseName: string): string;
+        getEmitResolver(): EmitResolver;
     }
 
     /* @internal */

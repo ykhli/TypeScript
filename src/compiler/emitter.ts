@@ -52,7 +52,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
         let sourceMapDataList: SourceMapData[] = compilerOptions.sourceMap || compilerOptions.inlineSourceMap ? [] : undefined;
         let diagnostics: Diagnostic[] = [];
         let newLine = host.getNewLine();
-        let transformation = transform.getTransformationChain(compilerOptions);
+        let getTransformationChain = memoize(() => transform.getTransformationChain(compilerOptions));
 
         if (targetSourceFile === undefined) {
             forEach(host.getSourceFiles(), sourceFile => {
@@ -173,12 +173,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
             /** Sourcemap data that will get encoded */
             let sourceMapData: SourceMapData;
 
-            let transformResolver: transform.TransformResolver = {
+            let getTransformResolver = memoize(() => <TransformResolver>{
                 getEmitResolver: () => resolver,
                 getGeneratedNameForNode,
                 makeTempVariableName: () => makeTempVariableName(TempFlags.Auto),
                 makeUniqueName,
-            };
+            });
 
             if (compilerOptions.sourceMap || compilerOptions.inlineSourceMap) {
                 initializeEmitterWithSourceMaps();
@@ -5691,6 +5691,10 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                     }
                 }
             }
+            
+            function createTransformation() {
+                
+            }
 
             function emitSourceFileNode(node: SourceFile) {
                 // Start new file on new line
@@ -5698,7 +5702,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 emitDetachedComments(node);
                 
                 // Perform any necessary transformations
-                let statements = transformation(transformResolver, node.statements);
+                let statements = node.statements;
+                if (node.transformFlags & TransformFlags.SubtreeNeedsTransformMask) {
+                    let transformationChain = getTransformationChain();
+                    let transformResolver = getTransformResolver();
+                    statements = transformationChain(transformResolver, statements);
+                }
 
                 // emit prologue directives prior to __extends
                 var startIndex = emitDirectivePrologues(statements, /*startWithNewLine*/ false);

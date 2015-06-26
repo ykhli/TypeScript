@@ -6,18 +6,21 @@ namespace ts.transform {
     
     export class ES5Transformer extends Transformer {
         public shouldTransformNode(node: Node) {
-            return !!(node.transformFlags & TransformFlags.ThisNodeNeedsES5Transform);
+            // return !!(node.transformFlags & TransformFlags.ThisNodeNeedsTransformToES5);
+            return !!(node.transformFlags & TransformFlags.ContainsGeneratorFunction);
         }
         
         public shouldTransformChildrenOfNode(node: Node) {
-            return !!(node.transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES5TransformMask);
-        }        
+            // return !!(node.transformFlags & TransformFlags.SubtreeNeedsTransformToES5);
+            return !!(node.transformFlags & TransformFlags.ContainsGeneratorFunction);
+        }
 
         public transformNode(node: Node): Node {
             switch (node.kind) {
                 case SyntaxKind.ArrowFunction:
                 case SyntaxKind.FunctionExpression:
                 case SyntaxKind.FunctionDeclaration:
+                case SyntaxKind.MethodDeclaration:
                     return this.transformFunctionLikeDeclaration(<FunctionLikeDeclaration>node);
             }
             
@@ -41,7 +44,7 @@ namespace ts.transform {
         public transform(node: FunctionLikeDeclaration): FunctionLikeDeclaration {
             // If any parameters containing binding patterns, initializers, or a rest argument
             // we need to transform the parameter list
-            if (node.transformFlags & TransformFlags.FunctionParameterMask) {
+            if (node.transformFlags & TransformFlags.ThisParameterNeedsTransformMask) {
                 this.parameters = [];
                 visitNodes(node.parameters, this);
             }
@@ -51,7 +54,7 @@ namespace ts.transform {
 
             // If any arrow function captures the 'this' of this function, we need
             // to add a statement to capture 'this' as '_this'
-            if (node.transformFlags & TransformFlags.ThisNodeNeedsCapturedThis) {
+            if (node.transformFlags & TransformFlags.CaptureThis) {
                 this.statements.push(
                     factory.createVariableStatement2(
                         factory.createIdentifier("_this"),
@@ -167,7 +170,7 @@ namespace ts.transform {
     //         Visitor.visit(node.name, visitNode, state);
     //         state.value = saveValue;
     //         return node;
-    //     }        
+    //     }
 
     //     function visitObjectBindingPattern(node: BindingPattern, state: RewriterState): BindingPattern {
     //         var { value, locals } = state, saveValue = value;

@@ -1,78 +1,78 @@
 /// <reference path="factory.ts" />
 /// <reference path="transform.generated.ts" />
 namespace ts.transform {
-    export type Transformation = (resolver: TransformResolver, statements: NodeArray<Statement>) => NodeArray<Statement>;
-
-    export const enum TransformerScope {
-    	None,
-    	Function
-    }
-    
     export class Transformer {
-    	public scope: TransformerScope;
-    	public previous: Transformer;
-    	public transformResolver: TransformResolver;
-    	public emitResolver: EmitResolver;
+        public scope: TransformerScope;
+        public previous: Transformer;
+        public transformResolver: TransformResolver;
+        public emitResolver: EmitResolver;
     
-    	constructor(resolver: TransformResolver, previous?: Transformer, scope?: TransformerScope) {
-    		this.transformResolver = resolver;
-    		this.emitResolver = resolver.getEmitResolver();
-    		this.previous = previous;
-    		this.scope = scope;
-    	}
-    	
-    	public transformNode(node: Node): Node {
-    		return this.previous ? this.previous.transformNode(node) : node; 
-    	}	
-    	
-    	public cacheNode(node: Node): Node { 
-    		return this.previous ? this.previous.cacheNode(node) : node; 
-    	}
-    	
-    	public shouldTransformNode(node: Node): boolean { 
-    		return this.previous ? this.previous.shouldTransformNode(node) : true; 
-    	}
-    	
-    	public shouldTransformChildrenOfNode(node: Node): boolean { 
-    		return this.previous ? this.previous.shouldTransformChildrenOfNode(node) : false; 
-    	}
-    	
-    	public shouldCachePreviousNodes(node: Node): boolean { 
-    		return this.previous ? this.previous.shouldCachePreviousNodes(node) : false; 
-    	}
-    	
-    	public shouldRemoveMissingNodes(): boolean {
-    		return this.previous ? this.previous.shouldRemoveMissingNodes() : false;
-    	}
+        constructor(resolver: TransformResolver, previous?: Transformer, scope?: TransformerScope) {
+            this.transformResolver = resolver;
+            this.emitResolver = resolver.getEmitResolver();
+            this.previous = previous;
+            this.scope = scope;
+        }
+        
+        public transformNode(node: Node): Node {
+            return this.previous ? this.previous.transformNode(node) : node;
+        }
+        
+        public cacheNode(node: Node): Node { 
+            return this.previous ? this.previous.cacheNode(node) : node;
+        }
+        
+        public shouldTransformNode(node: Node): boolean {
+            return this.previous ? this.previous.shouldTransformNode(node) : true;
+        }
+        
+        public shouldTransformChildrenOfNode(node: Node): boolean {
+            return this.previous ? this.previous.shouldTransformChildrenOfNode(node) : false;
+        }
+        
+        public shouldCachePreviousNodes(node: Node): boolean {
+            return this.previous ? this.previous.shouldCachePreviousNodes(node) : false;
+        }
+        
+        public shouldRemoveMissingNodes(): boolean {
+            return this.previous ? this.previous.shouldRemoveMissingNodes() : false;
+        }
         
         public shouldPopTransformerScope(node: Node): boolean {
             return this.scope === TransformerScope.Function 
                 && isFunctionLike(node);
         }
-    }    
-
-    export interface TransformResolver {
-        getGeneratedNameForNode(node: Node): string;
-        makeTempVariableName(): string;
-        makeUniqueName(baseName: string): string;
-        getEmitResolver(): EmitResolver;
     }
 
     export function visit<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
-        if (!node || !transformer) {
+        if (!node) {
             return node;
         }
         
-        if (transformer.shouldPopTransformerScope(node)) {
+        // Attempt to transform the node or its children
+        let transformed: Node;
+        while (transformer) {
+            if (!transformer.shouldPopTransformerScope(node)) {
+                if (transformer.shouldTransformNode(node)) {
+                    transformed = transformer.transformNode(node);
+                    break;
+                }
+                else if (transformer.shouldTransformChildrenOfNode(node)) {
+                    transformed = transformer.transformNode(node);
+                    break;
+                }
+            }
+            
+            // We couldn't transform the node with this transformer, try a previous transformer.
             transformer = transformer.previous;
         }
         
-        let transformed = 
-            transformer.shouldTransformNode(node) ? transformer.transformNode(node) :
-            transformer.shouldTransformChildrenOfNode(node) ? visitChildren(node, transformer) : 
-            node;
+        // No transformer could transform the node, so return it
+        if (!transformer) {
+            return node;
+        }
         
-        // if the transformed node differs from the source node, set the source pointer.
+        // If the transformed node differs from the source node, set the source pointer.
         if (transformed && transformed !== node) {
             transformed.transformSource = node;
         }

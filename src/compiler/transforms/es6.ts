@@ -6,12 +6,14 @@ namespace ts.transform {
     
     /* @internal */
     export class ES6Transformer extends Transformer {
-        shouldTransformNode(node: Node) {
-            return !!(node.transformFlags & TransformFlags.ThisNodeNeedsES6Transform);
+        public shouldTransformNode(node: Node) {
+            // return !!(node.transformFlags & TransformFlags.ThisNodeNeedsTransformToES6);
+            return false;
         }
 
-        shouldTransformChildrenOfNode(node: Node) {
-            return !!(node.transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES6TransformMask);
+        public shouldTransformChildrenOfNode(node: Node) {
+            // return !!(node.transformFlags & TransformFlags.SubtreeNeedsTransformToES6);
+            return false;
         }
     }
 

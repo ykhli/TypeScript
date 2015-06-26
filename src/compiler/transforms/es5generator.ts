@@ -171,7 +171,7 @@ namespace ts.transform {
             // Phase 1 - Translate the body of the generator function into labels and operations
             this.rewriteBlock(body);
             
-            // Phase 2 - Write the statements of the generator body 
+            // Phase 2 - Write the operations as statements of the generator body 
             this.writeBodyStatements();
 
             // Insert the call to __generator
@@ -286,7 +286,7 @@ namespace ts.transform {
             
             switch (node.kind) {
                 case SyntaxKind.Block:
-                    if (node.transformFlags & TransformFlags.ThisNodeOrAnySubNodesContainsYield) {
+                    if (node.transformFlags & TransformFlags.ContainsYield) {
                         this.rewriteBlock(<Block>node);
                         return;
                     }

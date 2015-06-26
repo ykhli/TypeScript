@@ -1,31 +1,16 @@
 /// <reference path="../factory.ts" />
 /// <reference path="../transform.ts" />
+/// <reference path="es7.ts" />
+/// <reference path="es6.ts" />
 /// <reference path="es5.ts" />
-/// <reference path="es6.ts" />
 /// <reference path="es5generator.ts" />
-/// <reference path="es5modules.ts" />
-/// <reference path="es6.ts" />
 namespace ts.transform {
     export function getTransformationChain(options: CompilerOptions): Transformation {
         if ((options.target || ScriptTarget.ES3) < ScriptTarget.ES6) {
-            switch (options.module) {
-                case ModuleKind.UMD: 
-                    return chainTransformations(toES6, toES5, toUMD);
-                
-                case ModuleKind.AMD: 
-                    return chainTransformations(toES6, toES5, toAMD);
-                
-                case ModuleKind.System: 
-                    return chainTransformations(toES6, toES5, toSystemJS);
-                
-                case ModuleKind.CommonJS:
-                case ModuleKind.None:
-                default:
-                    return chainTransformations(toES6, toES5, toCommonJS); 
-            }
+            return chainTransformations(toES7, toES6, toES5);
         }
         
-        return toES6;
+        return chainTransformations(toES7, toES6);
     }
     
     export function chainTransformations(...transformations: Transformation[]): Transformation {
