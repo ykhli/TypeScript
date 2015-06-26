@@ -759,26 +759,32 @@ namespace ts {
             }
             return node;
         }
-        export function createPrefixUnaryExpression(operand?: UnaryExpression): PrefixUnaryExpression {
+        export function createPrefixUnaryExpression(operator?: SyntaxKind, operand?: UnaryExpression): PrefixUnaryExpression {
             let node = createNode<PrefixUnaryExpression>(SyntaxKind.PrefixUnaryExpression);
-            node.operand = operand;
+            if (arguments.length) {
+                node.operator = operator;
+                node.operand = operand;
+            }
             return node;
         }
         export function updatePrefixUnaryExpression(node: PrefixUnaryExpression, operand: UnaryExpression): PrefixUnaryExpression {
             if (operand !== node.operand) {
-                let newNode = createPrefixUnaryExpression(operand);
+                let newNode = createPrefixUnaryExpression(node.operator, operand);
                 return updateFrom(node, newNode);
             }
             return node;
         }
-        export function createPostfixUnaryExpression(operand?: LeftHandSideExpression): PostfixUnaryExpression {
+        export function createPostfixUnaryExpression(operand?: LeftHandSideExpression, operator?: SyntaxKind): PostfixUnaryExpression {
             let node = createNode<PostfixUnaryExpression>(SyntaxKind.PostfixUnaryExpression);
-            node.operand = operand;
+            if (arguments.length) {
+                node.operand = operand;
+                node.operator = operator;
+            }
             return node;
         }
         export function updatePostfixUnaryExpression(node: PostfixUnaryExpression, operand: LeftHandSideExpression): PostfixUnaryExpression {
             if (operand !== node.operand) {
-                let newNode = createPostfixUnaryExpression(operand);
+                let newNode = createPostfixUnaryExpression(operand, node.operator);
                 return updateFrom(node, newNode);
             }
             return node;

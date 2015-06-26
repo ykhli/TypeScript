@@ -795,6 +795,7 @@ namespace ts {
 
     // @kind(SyntaxKind.PrefixUnaryExpression)
     export interface PrefixUnaryExpression extends UnaryExpression {
+        // @factoryparam
         operator: SyntaxKind;
         operand: UnaryExpression;
     }
@@ -802,6 +803,7 @@ namespace ts {
     // @kind(SyntaxKind.PostfixUnaryExpression)
     export interface PostfixUnaryExpression extends PostfixExpression {
         operand: LeftHandSideExpression;
+        // @factoryparam
         operator: SyntaxKind;
     }
 

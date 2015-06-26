@@ -97,7 +97,7 @@ namespace ts {
             return factory.createFunctionDeclaration2(
                 name,
                 parameters,
-                factory.createBlock(body));
+                factory.createBlock(body || []));
         }
         
         export function createFunctionExpression2(name: Identifier, parameters: ParameterDeclaration[], body: Block) {
@@ -123,14 +123,14 @@ namespace ts {
             return factory.createFunctionExpression2(
                 name,
                 parameters,
-                factory.createBlock(body));
+                factory.createBlock(body || []));
         }
 
         export function createFunctionExpression5(parameters: ParameterDeclaration[], body: Statement[]) {
             return factory.createFunctionExpression2(
                 /*name*/ undefined,
                 parameters,
-                factory.createBlock(body));
+                factory.createBlock(body || []));
         }
         
         export function createPropertyAccessExpression2(expression: LeftHandSideExpression, propertyName: Identifier) {
@@ -139,5 +139,59 @@ namespace ts {
                 factory.createNode(SyntaxKind.DotToken),
                 propertyName);
         }
+        
+        export function createNumericLiteral2(value: number): LiteralExpression {
+            return factory.createNumericLiteral(String(value));
+        }
+        
+        export function createBinaryExpression2(operator: SyntaxKind, left: Expression, right: Expression) {
+            return factory.createBinaryExpression(
+                left,
+                factory.createNode(operator),
+                right
+            );
+        }
+
+        export function setTextRange<TNode extends Node>(node: TNode, range: TextRange): TNode {
+            if (!node || !range) {
+                return node;
+            }
+            
+            node.pos = range.pos;
+            node.end = range.end;
+            return node;
+        }
+
+        // export function createVoidZero(location?: TextRange, flags?: NodeFlags): VoidExpression {
+        //     return createVoidExpression(createNumericLiteral(0, location, flags), location, flags);
+        // }
+
+        // export function makeLeftHandSideExpression(expression: Expression): LeftHandSideExpression {
+        //     if (isLeftHandSideExpression(expression)) {
+        //         return <LeftHandSideExpression>expression;
+        //     }
+
+        //     return createParenthesizedExpression(expression);
+        // }
+
+        // export function createPropertyOrElementAccessExpression(expression: LeftHandSideExpression, propName: Identifier | LiteralExpression): LeftHandSideExpression {
+        //     if (propName.kind !== SyntaxKind.Identifier) {
+        //         return createElementAccessExpression(expression, propName);
+        //     }
+        //     return createPropertyAccessExpression(expression, <Identifier>propName);
+        // }
+        
+        // export function getExpressionForEntityName(name: EntityName): LeftHandSideExpression {
+        //     if (!name) {
+        //         return finishNode(beginNode<LeftHandSideExpression>(SyntaxKind.NullKeyword));
+        //     }
+
+        //     if (name.kind === SyntaxKind.Identifier) {
+        //         return createIdentifier((<Identifier>name).text);
+        //     }
+        //     else {
+        //         return createPropertyAccessExpression(getExpressionForEntityName((<QualifiedName>name).left), createIdentifier((<QualifiedName>name).right.text));
+        //     }
+        // }
     }
 }

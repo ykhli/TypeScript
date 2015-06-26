@@ -662,13 +662,16 @@ function writeUpdateFunction(syntaxNode: SyntaxNode) {
     writer.increaseIndent();
     
     writer.write(`if (`);
-    for (let i = 0; i < syntaxNode.members.length; ++i) {
-        let member = syntaxNode.members[i];
+    let first = true;
+    for (let member of syntaxNode.members) {
         if (member.isFactoryParam) {
             continue;
         }
         
-        if (i > 0) {
+        if (first) {
+            first = false;
+        }
+        else {
             writer.write(` || `);
         }
         
@@ -759,6 +762,10 @@ function writeVisitorFunction() {
         writer.write(`<${syntaxNode.symbol.name}>node`);
         
         for (let member of syntaxNode.members) {
+            if (member.isFactoryParam) {
+                continue;
+            }
+            
             writer.write(`, `);
             writer.writeLine();
             if (member.isNodeArray) {
