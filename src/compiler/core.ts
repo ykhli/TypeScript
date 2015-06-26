@@ -267,6 +267,14 @@ namespace ts {
         }
         return <T>result;
     }
+    
+    export function assign<T>(target: T, source: T): T {
+        for (let id in source) {
+            (<any>target)[id] = (<any>source)[id];
+        }
+        
+        return target;
+    }
 
     export function extend<T>(first: Map<T>, second: Map<T>): Map<T> {
         let result: Map<T> = {};

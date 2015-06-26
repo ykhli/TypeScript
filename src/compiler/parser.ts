@@ -456,7 +456,7 @@ namespace ts {
         // parsing.  These context flags are naturally stored and restored through normal recursive
         // descent parsing and unwinding.
         let contextFlags: ParserContextFlags;
-
+        
         // Whether or not we've had a parse error since creating the last AST node.  If we have
         // encountered an error, it will be stored on the next AST node we create.  Parse errors
         // can be broken down into three categories:
@@ -485,6 +485,9 @@ namespace ts {
         // Note: any errors at the end of the file that do not precede a regular node, should get
         // attached to the EOF token.
         let parseErrorBeforeNextFinishedNode: boolean = false;
+        
+        let transformFlags: TransformFlags;
+        let transformStack: TransformFlags[] = [];
 
         export function parseSourceFile(fileName: string, _sourceText: string, languageVersion: ScriptTarget, _syntaxCursor: IncrementalParser.SyntaxCursor, setParentNodes?: boolean): SourceFile {
             initializeState(fileName, _sourceText, languageVersion, _syntaxCursor);
@@ -629,6 +632,20 @@ namespace ts {
             return sourceFile;
         }
 
+        function saveAndResetTransformContext(): TransformFlags {
+            let flags = transformFlags;
+            transformFlags = undefined;
+            return flags;
+        }
+        
+        function restoreTransformContext(flags: TransformFlags) {
+            transformFlags |= flags;
+        }
+        
+        function resetThisNodeNeedsAnyTransform() {
+            transformFlags &= ~TransformFlags.ThisNodeNeedsTransformMask;
+        }
+        
         function setContextFlag(val: Boolean, flag: ParserContextFlags) {
             if (val) {
                 contextFlags |= flag;
@@ -637,7 +654,7 @@ namespace ts {
                 contextFlags &= ~flag;
             }
         }
-
+        
         function setDisallowInContext(val: boolean) {
             setContextFlag(val, ParserContextFlags.DisallowIn);
         }
@@ -801,6 +818,7 @@ namespace ts {
             let saveToken = token;
             let saveParseDiagnosticsLength = parseDiagnostics.length;
             let saveParseErrorBeforeNextFinishedNode = parseErrorBeforeNextFinishedNode;
+            let saveTransformFlags = saveAndResetTransformContext();
 
             // Note: it is not actually necessary to save/restore the context flags here.  That's
             // because the saving/restorating of these flags happens naturally through the recursive
@@ -823,6 +841,7 @@ namespace ts {
                 token = saveToken;
                 parseDiagnostics.length = saveParseDiagnosticsLength;
                 parseErrorBeforeNextFinishedNode = saveParseErrorBeforeNextFinishedNode;
+                transformFlags = saveTransformFlags;
             }
 
             return result;
@@ -925,6 +944,8 @@ namespace ts {
         }
         
         function beginNode<T extends Node>(node: T, pos?: number): T {
+            transformStack.push(saveAndResetTransformContext());
+            
             nodeCount++;
             if (!(pos >= 0)) {
                 pos = scanner.getStartPos();
@@ -934,12 +955,160 @@ namespace ts {
             node.end = pos;
             return node;
         }
+        
+        function markTransformsForNode(node: Node) {
+            switch (node.kind) {
+                case SyntaxKind.ThisKeyword:
+                    transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsThis;
+                    break;
+                    
+                // TypeScript to ES6 transforms
+                case SyntaxKind.EnumDeclaration:
+                case SyntaxKind.ModuleDeclaration:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES6Transform;
+                    break;
+
+                case SyntaxKind.Decorator:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES6Transform | TransformFlags.ThisNodeOrAnySubNodesContainsDecorator;
+                    break;
+                    
+                // ES6 to ES5 transforms
+                case SyntaxKind.ImportDeclaration:
+                case SyntaxKind.ExportDeclaration:
+                    transformFlags |= TransformFlags.ThisNodeNeedsModuleTransform | TransformFlags.ThisNodeOrAnySubNodesContainsImportOrExport;
+                    break;
+                    
+                case SyntaxKind.ClassDeclaration:
+                case SyntaxKind.ClassExpression:
+                case SyntaxKind.MethodDeclaration:
+                case SyntaxKind.ShorthandPropertyAssignment:
+                case SyntaxKind.ComputedPropertyName:
+                case SyntaxKind.ForOfStatement:
+                case SyntaxKind.TaggedTemplateExpression:
+                case SyntaxKind.TemplateExpression:
+                case SyntaxKind.TemplateHead:
+                case SyntaxKind.TemplateMiddle:
+                case SyntaxKind.TemplateTail:
+                case SyntaxKind.NoSubstitutionTemplateLiteral:
+                case SyntaxKind.BindingElement:
+                // case SyntaxKind.NewTargetExpression:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                    break;
+
+                case SyntaxKind.ArrowFunction:
+                    if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesContainsThis) {
+                        transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsCapturedThis;
+                    }
+                    
+                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                    break;
+
+                case SyntaxKind.GetAccessor:
+                case SyntaxKind.SetAccessor:
+                    if (isClassLike(node.parent)) {
+                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                    }
+                    break;
+
+                case SyntaxKind.ArrayBindingPattern:
+                case SyntaxKind.ObjectBindingPattern:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsBindingPattern;
+                    break;
+                    
+                case SyntaxKind.SpreadElementExpression:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsSpreadElement;
+                    break;
+                    
+                case SyntaxKind.BinaryExpression:
+                    if (isDestructuringAssignment(node)) {
+                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                    }
+                    
+                    break;
+                    
+                case SyntaxKind.Parameter:
+                    if ((<ParameterDeclaration>node).initializer) {
+                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsInitializer;
+                    }
+                    else if ((<ParameterDeclaration>node).dotDotDotToken) {
+                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsRestArgument;
+                    }
+                    
+                    break;
+                    
+                case SyntaxKind.VariableDeclarationList:
+                    if (node.flags & (NodeFlags.Let | NodeFlags.Const)) {
+                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsLetOrConst;
+                    }
+                    
+                    break;
+                    
+                case SyntaxKind.YieldExpression:
+                // case SyntaxKind.AwaitExpression:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsYield;
+                    break;
+                    
+                case SyntaxKind.MethodDeclaration:
+                case SyntaxKind.FunctionDeclaration:
+                case SyntaxKind.FunctionExpression:
+                    if ((<FunctionLikeDeclaration>node).asteriskToken /* ||
+                        (node.flags & NodeFlags.Async)*/) {
+                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                    }
+                    
+                    break;
+
+                // Module transforms
+                case SyntaxKind.ImportEqualsDeclaration:
+                case SyntaxKind.ExportAssignment:
+                    transformFlags |= TransformFlags.ThisNodeNeedsModuleTransform | TransformFlags.ThisNodeOrAnySubNodesContainsImportOrExportEquals;
+                    break;
+            }
+            
+            if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES6TransformMask) {
+                transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsTypeScript;
+            }
+            
+            if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES5TransformMask) {
+                transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsES6;
+            }
+            
+            if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsModuleTransformMask) {
+                transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsModule;
+            }
+            
+            if (node.kind === SyntaxKind.ArrowFunction) {
+                transformFlags &= ~TransformFlags.ArrowFunctionScopeExcludes;
+            }
+            else if (isFunctionLike(node)) {
+                if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesContainsCapturedThis) {
+                    transformFlags |= TransformFlags.ThisNodeNeedsCapturedThis | TransformFlags.ThisNodeNeedsES5Transform;
+                }
+                
+                transformFlags &= ~TransformFlags.FunctionScopeExcludes;
+            }
+            else if (node.kind === SyntaxKind.SourceFile || node.kind === SyntaxKind.ModuleBlock) {
+                transformFlags &= ~TransformFlags.ModuleScopeExcludes;
+            }
+            else if (node.kind === SyntaxKind.CallExpression || node.kind === SyntaxKind.NewExpression || node.kind === SyntaxKind.ArrayLiteralExpression) {
+                transformFlags &= ~TransformFlags.CallOrArrayLiteralExcludes;
+            }
+        }
 
         function finishNode<T extends Node>(node: T, end?: number): T {
+            debugger;
             node.end = end === undefined ? scanner.getStartPos() : end;
+            
+            if (!(node.flags & NodeFlags.Ambient)) {
+                markTransformsForNode(node);
+            }
 
             if (contextFlags) {
                 node.parserContextFlags = contextFlags;
+            }
+            
+            if (transformFlags) {
+                node.transformFlags = transformFlags;
             }
 
             // Keep track on the node if we encountered an error while parsing it.  If we did, then
@@ -950,6 +1119,8 @@ namespace ts {
                 node.parserContextFlags |= ParserContextFlags.ThisNodeHasError;
             }
 
+            resetThisNodeNeedsAnyTransform();
+            restoreTransformContext(transformStack.pop());
             return node;
         }
 
@@ -2664,8 +2835,8 @@ namespace ts {
         function parseSimpleArrowFunctionExpression(identifier: Identifier): Expression {
             Debug.assert(token === SyntaxKind.EqualsGreaterThanToken, "parseSimpleArrowFunctionExpression should only have been called if we had a =>");
 
+            let savedTransformContext = saveAndResetTransformContext();
             let node = beginNode(factory.createArrowFunction(), identifier.pos);
-
             let parameter = beginNode(factory.createParameter(), identifier.pos);
             parameter.name = identifier;
             finishNode(parameter);
@@ -2677,6 +2848,8 @@ namespace ts {
             node.equalsGreaterThanToken = parseExpectedToken(SyntaxKind.EqualsGreaterThanToken, false, Diagnostics._0_expected, "=>");
             node.body = parseArrowFunctionExpressionBody();
 
+            // set that this node needs to be transformed from ES6 to ES5.
+            restoreTransformContext
             return finishNode(node);
         }
 
@@ -2807,6 +2980,7 @@ namespace ts {
 
         function parseParenthesizedArrowFunctionExpressionHead(allowAmbiguity: boolean): ArrowFunction {
             let node = beginNode(factory.createArrowFunction());
+            
             // Arrow functions are never generators.
             //
             // If we're speculatively parsing a signature for a parenthesized arrow function, then

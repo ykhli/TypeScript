@@ -47,9 +47,11 @@ interface SyntaxNode {
 }
 
 interface SyntaxMember {
+    paramName?: string;
     symbol?: Symbol;
     typeNode?: TypeNode;
     typeSymbol?: Symbol;
+    elementType?: TypeNode;
     isFactoryParam?: boolean;
     isOptional?: boolean;
     isNode?: boolean;
@@ -132,6 +134,7 @@ let memberOrderOverrides: MemberNameMap = {
 discoverSymbols();
 discoverSyntaxNodes();
 generateFactory();
+generateTransforms();
 
 function discoverSymbols() {
     visit(sourceFile);
@@ -251,7 +254,7 @@ function discoverSyntaxNodes() {
                         continue;
                     }
                 }
-                else if ((<any>property).parent === nodeSymbol || property.name === "parent") {
+                else if ((<any>property).parent === nodeSymbol || property.name === "parent" || property.name === "transformSource") {
                     continue;
                 }
                 
@@ -267,12 +270,16 @@ function discoverSyntaxNodes() {
                 let propertyIsModifiersArray = !propertyIsNodeArray && isModifiersArray(typeNode);
                 let propertyIsNode = !propertyIsNodeArray && !propertyIsModifiersArray && isSubtypeOf(typeNode, nodeSymbol);
                 let isChild = propertyIsNodeArray || propertyIsModifiersArray || propertyIsNode;
+                let elementType = propertyIsNodeArray ? (<TypeReferenceNode>typeNode).typeArguments[0] : undefined;
                 if (isFactoryParam || isChild) {
                     if (isChild) hasChildren = true;
-                    members.push({ 
+                    let paramName = property.name === "arguments" ? "_arguments" : property.name;
+                    members.push({
+                        paramName, 
                         symbol: property,
                         typeNode,
                         typeSymbol,
+                        elementType,
                         isOptional,
                         isFactoryParam,
                         isNodeArray: propertyIsNodeArray,
@@ -454,160 +461,86 @@ function generateFactory() {
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();
-    writeVisitorFunction();
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();
     
     sys.writeFile(sys.resolvePath(combinePaths(__dirname, "../src/compiler/factory.generated.ts")), writer.getText());
-    
-    function writeFactoryHelperFunctions() {
-        writer.rawWrite(`        function setModifiers(node: Node, modifiers: ModifiersArray) {
-            if (modifiers) {
-                node.flags |= modifiers.flags;
-                node.modifiers = modifiers;
-            }
-        }
-        function updateFrom<T extends Node>(oldNode: T, newNode: T): T {
-            let flags = oldNode.flags;
-            if (oldNode.modifiers) {
-                flags &= oldNode.modifiers.flags;
-            }
-            
-            if (newNode.modifiers) {
-                flags |= newNode.modifiers.flags;
-            }
-            
-            newNode.flags = flags;
-            newNode.pos = oldNode.pos;
-            newNode.end = oldNode.end;
-            newNode.parent = oldNode.parent;
-            return newNode;
-        }`);
-        writer.writeLine();
-    }
-    
-    function writeCreateAndUpdateFunctions() {
-        for (let syntaxNode of syntax) {
-            writeCreateFunction(syntaxNode);
-            writeUpdateFunction(syntaxNode);
-        }
-    }
-    
-    function writeCreateFunction(syntaxNode: SyntaxNode) {
-        if (syntaxNode.kind.name === "SourceFile") {
-            return;
-        }
-        
-        writer.write(`export function create${syntaxNode.kind.name}(`);
-        
-        let indented = false;
-        for (let i = 0; i < syntaxNode.members.length; ++i) {
-            if (i > 0) {
-                writer.write(`, `);
-            }
-            
-            let member = syntaxNode.members[i];
-            let paramText = `${member.symbol.name === "arguments" ? "_arguments" : member.symbol.name}?: ${member.typeNode.getText()}`;
-            
-            if (writer.getColumn() >= columnWrap - paramText.length) {
-                writer.writeLine();
-                if (!indented) {
-                    indented = true;
-                    writer.increaseIndent();
-                }
-            }
-            
-            writer.write(paramText);
-        }
-        
-        let returnTypeText = `): ${syntaxNode.symbol.name} {`;
-        
-        if (writer.getColumn() >= columnWrap - returnTypeText.length) {
-            writer.writeLine();
-            if (!indented) {
-                indented = true;
-                writer.increaseIndent();
-            }
-        }
-        
-        writer.write(returnTypeText);
-        writer.writeLine();
-        if (indented) {
-            writer.decreaseIndent();
-            indented = false;
-        }
-        
-        writer.increaseIndent();
-        if (syntaxNode.members.length) {
-            writer.write(`let node = createNode<${syntaxNode.symbol.name}>(SyntaxKind.${syntaxNode.kind.name});`);
-            writer.writeLine();
-            if (syntaxNode.members.length > 1) {
-                writer.write(`if (arguments.length) {`);
-                writer.writeLine();
-                writer.increaseIndent();
-            }
-            
-            for (let member of syntaxNode.members) {
-                if (member.isModifiersArray) {
-                    writer.write(`setModifiers(node, modifiers);`);
-                }
-                else {
-                    writer.write(`node.${member.symbol.name} = ${member.symbol.name === "arguments" ? "_arguments" : member.symbol.name};`);
-                }
-                
-                writer.writeLine();
-            }
-            
-            if (syntaxNode.members.length > 1) {
-                writer.decreaseIndent();
-                writer.write(`}`);
-                writer.writeLine();
-            }
-        
-            writer.write(`return node;`);
-            writer.writeLine();
-        }
-        else {
-            writer.write(`return createNode<${syntaxNode.symbol.name}>(SyntaxKind.${syntaxNode.kind.name});`);
-            writer.writeLine();
-        }
+}
 
-        writer.decreaseIndent();
-        writer.write(`}`);
-        writer.writeLine();
+function generateTransforms() {
+    writer = createTextWriter(host.getNewLine());
+    writer.write(`// <auto-generated />`);
+    writer.writeLine();
+    writer.write(`/// <reference path="factory.ts" />`);
+    writer.writeLine();
+    writer.write(`/// <reference path="transform.ts" />`);
+    writer.writeLine();
+    writer.write(`namespace ts.transform {`);
+    writer.writeLine();
+    writer.increaseIndent();
+    writeVisitorHelperFunctions();
+    writeVisitorFunction();
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+   
+    sys.writeFile(sys.resolvePath(combinePaths(__dirname, "../src/compiler/transform.generated.ts")), writer.getText());
+}
+
+function writeFactoryHelperFunctions() {
+    writer.rawWrite(`        function setModifiers(node: Node, modifiers: Node[]) {
+        if (modifiers) {
+            node.modifiers = createModifiersArray(modifiers);
+            node.flags |= node.modifiers.flags;
+        }
     }
-    
-    function writeUpdateFunction(syntaxNode: SyntaxNode) {
-        if (!syntaxNode.hasChildren || syntaxNode.kind.name === "SourceFile") {
-            return;
+    function updateFrom<T extends Node>(oldNode: T, newNode: T): T {
+        let flags = oldNode.flags;
+        if (oldNode.modifiers) {
+            flags &= oldNode.modifiers.flags;
         }
         
-        writer.write(`export function update${syntaxNode.kind.name}(node: ${syntaxNode.symbol.name}`);
+        if (newNode.modifiers) {
+            flags |= newNode.modifiers.flags;
+        }
+        
+        newNode.flags = flags;
+        newNode.pos = oldNode.pos;
+        newNode.end = oldNode.end;
+        newNode.parent = oldNode.parent;
+        return newNode;
+    }`);
+    writer.writeLine();
+}
 
-        let indented = false;
-        for (let i = 0; i < syntaxNode.members.length; ++i) {
-            let member = syntaxNode.members[i];
-            if (member.isFactoryParam) {
-                continue;
-            }
-            
+function writeCreateAndUpdateFunctions() {
+    for (let syntaxNode of syntax) {
+        writeCreateFunction(syntaxNode);
+        writeUpdateFunction(syntaxNode);
+    }
+}
+
+function writeCreateFunction(syntaxNode: SyntaxNode) {
+    if (syntaxNode.kind.name === "SourceFile") {
+        return;
+    }
+    
+    writer.write(`export function create${syntaxNode.kind.name}(`);
+    
+    let indented = false;
+    for (let i = 0; i < syntaxNode.members.length; ++i) {
+        if (i > 0) {
             writer.write(`, `);
-            
-            let paramText = `${member.symbol.name === "arguments" ? "_arguments" : member.symbol.name}: ${member.typeNode.getText()}`;
-            if (writer.getColumn() >= columnWrap - paramText.length) {
-                writer.writeLine();
-                if (!indented) {
-                    indented = true;
-                    writer.increaseIndent();
-                }
-            }
-
-            writer.write(paramText);
         }
-
-        let returnTypeText = `): ${syntaxNode.symbol.name} {`;
-        if (writer.getColumn() >= columnWrap - returnTypeText.length) {
+        
+        let member = syntaxNode.members[i];
+        let paramText = 
+            member.isNodeArray ? `${member.paramName}?: ${member.elementType.getText()}[]` :
+            member.isModifiersArray ? `${member.paramName}?: Node[]` :
+            `${member.paramName}?: ${member.typeNode.getText()}`;
+        
+        if (writer.getColumn() >= columnWrap - paramText.length) {
             writer.writeLine();
             if (!indented) {
                 indented = true;
@@ -615,141 +548,255 @@ function generateFactory() {
             }
         }
         
-        writer.write(returnTypeText);
+        writer.write(paramText);
+    }
+    
+    let returnTypeText = `): ${syntaxNode.symbol.name} {`;
+    
+    if (writer.getColumn() >= columnWrap - returnTypeText.length) {
         writer.writeLine();
-        if (indented) {
-            writer.decreaseIndent();
-            indented = false;
+        if (!indented) {
+            indented = true;
+            writer.increaseIndent();
         }
-        
-        writer.increaseIndent();
-        
-        writer.write(`if (`);
-        for (let i = 0; i < syntaxNode.members.length; ++i) {
-            let member = syntaxNode.members[i];
-            if (member.isFactoryParam) {
-                continue;
-            }
-            
-            if (i > 0) {
-                writer.write(` || `);
-            }
-            
-            let conditionText = `${member.symbol.name === "arguments" ? "_arguments" : member.symbol.name} !== node.${member.symbol.name}`;
-            if (writer.getColumn() >= columnWrap - conditionText.length) {
-                writer.writeLine();
-                if (!indented) {
-                    indented = true;
-                    writer.increaseIndent();
-                }
-            }
-
-            writer.write(conditionText);
-        }
-
-        writer.write(`) {`);
+    }
+    
+    writer.write(returnTypeText);
+    writer.writeLine();
+    if (indented) {
+        writer.decreaseIndent();
+        indented = false;
+    }
+    
+    writer.increaseIndent();
+    if (syntaxNode.members.length) {
+        writer.write(`let node = createNode<${syntaxNode.symbol.name}>(SyntaxKind.${syntaxNode.kind.name});`);
         writer.writeLine();
-        if (indented) {
-            writer.decreaseIndent();
-            indented = false;
+        if (syntaxNode.members.length > 1) {
+            writer.write(`if (arguments.length) {`);
+            writer.writeLine();
+            writer.increaseIndent();
         }
         
-        writer.increaseIndent();
-        
-        writer.write(`let newNode = create${syntaxNode.kind.name}(`);
-        
-        for (let i = 0; i < syntaxNode.members.length; ++i) {
-            if (i > 0) {
-                writer.write(`, `);
+        for (let member of syntaxNode.members) {
+            if (member.isModifiersArray) {
+                writer.write(`setModifiers(node, modifiers);`);
             }
-            
-            let member = syntaxNode.members[i];
-            if (member.isFactoryParam) {
-                writer.write(`node.${member.symbol.name}`);
+            else if (member.isNodeArray) {
+                writer.write(`node.${member.symbol.name} = ${member.paramName} && createNodeArray(${member.paramName})`);
             }
             else {
-                writer.write(member.symbol.name === "arguments" ? "_arguments" : member.symbol.name);
+                writer.write(`node.${member.symbol.name} = ${member.paramName};`);
+            }
+            
+            writer.writeLine();
+        }
+        
+        if (syntaxNode.members.length > 1) {
+            writer.decreaseIndent();
+            writer.write(`}`);
+            writer.writeLine();
+        }
+    
+        writer.write(`return node;`);
+        writer.writeLine();
+    }
+    else {
+        writer.write(`return createNode<${syntaxNode.symbol.name}>(SyntaxKind.${syntaxNode.kind.name});`);
+        writer.writeLine();
+    }
+
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+}
+
+function writeUpdateFunction(syntaxNode: SyntaxNode) {
+    if (!syntaxNode.hasChildren || syntaxNode.kind.name === "SourceFile") {
+        return;
+    }
+    
+    writer.write(`export function update${syntaxNode.kind.name}(node: ${syntaxNode.symbol.name}`);
+
+    let indented = false;
+    for (let i = 0; i < syntaxNode.members.length; ++i) {
+        let member = syntaxNode.members[i];
+        if (member.isFactoryParam) {
+            continue;
+        }
+        
+        writer.write(`, `);
+        
+        let paramText = 
+            member.isNodeArray ? `${member.paramName}: ${member.elementType.getText()}[]` :
+            member.isModifiersArray ? `${member.paramName}: Node[]` :
+            `${member.paramName}: ${member.typeNode.getText()}`;
+
+        if (writer.getColumn() >= columnWrap - paramText.length) {
+            writer.writeLine();
+            if (!indented) {
+                indented = true;
+                writer.increaseIndent();
             }
         }
 
+        writer.write(paramText);
+    }
+
+    let returnTypeText = `): ${syntaxNode.symbol.name} {`;
+    if (writer.getColumn() >= columnWrap - returnTypeText.length) {
+        writer.writeLine();
+        if (!indented) {
+            indented = true;
+            writer.increaseIndent();
+        }
+    }
+    
+    writer.write(returnTypeText);
+    writer.writeLine();
+    if (indented) {
+        writer.decreaseIndent();
+        indented = false;
+    }
+    
+    writer.increaseIndent();
+    
+    writer.write(`if (`);
+    for (let i = 0; i < syntaxNode.members.length; ++i) {
+        let member = syntaxNode.members[i];
+        if (member.isFactoryParam) {
+            continue;
+        }
+        
+        if (i > 0) {
+            writer.write(` || `);
+        }
+        
+        let conditionText = `${member.paramName} !== node.${member.symbol.name}`;
+        if (writer.getColumn() >= columnWrap - conditionText.length) {
+            writer.writeLine();
+            if (!indented) {
+                indented = true;
+                writer.increaseIndent();
+            }
+        }
+
+        writer.write(conditionText);
+    }
+
+    writer.write(`) {`);
+    writer.writeLine();
+    if (indented) {
+        writer.decreaseIndent();
+        indented = false;
+    }
+    
+    writer.increaseIndent();
+    
+    writer.write(`let newNode = create${syntaxNode.kind.name}(`);
+    
+    for (let i = 0; i < syntaxNode.members.length; ++i) {
+        if (i > 0) {
+            writer.write(`, `);
+        }
+        
+        let member = syntaxNode.members[i];
+        if (member.isFactoryParam) {
+            writer.write(`node.${member.symbol.name}`);
+        }
+        else {
+            writer.write(member.paramName);
+        }
+    }
+
+    writer.write(`);`);
+    writer.writeLine();
+    
+    writer.write(`return updateFrom(node, newNode);`);
+    writer.writeLine();
+    
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+    
+    writer.write(`return node;`);
+    writer.writeLine();
+
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+}
+
+function writeVisitorHelperFunctions() {
+    writer.write(`function transformerShouldTransformChildrenOfNode(transformer: Transformer, node: Node) {`);
+    writer.writeLine();
+    writer.increaseIndent();
+    writer.write(`return node && transformer && transformer.shouldTransformChildrenOfNode ? transformer.shouldTransformChildrenOfNode(node, transformer) : false;`);
+    writer.writeLine();
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+}
+
+function writeVisitorFunction() {
+    writer.write(`export function visitChildren<TNode extends Node>(node: TNode, transformer: Transformer): TNode;`);
+    writer.writeLine();
+    writer.write(`export function visitChildren(node: Node, transformer: Transformer): Node {`);
+    writer.writeLine();
+    writer.increaseIndent();
+
+    writer.write(`if (!transformerShouldTransformChildrenOfNode(transformer, node)) return node;`);
+    writer.writeLine();
+    
+    writer.write(`switch (node.kind) {`);
+    writer.writeLine();
+    writer.increaseIndent();
+    
+    for (let syntaxNode of syntax) {
+        if (!syntaxNode.hasChildren || syntaxNode.kind.name === "SourceFile") {
+            continue;
+        }
+        
+        writer.write(`case SyntaxKind.${syntaxNode.kind.name}:`);
+        writer.writeLine();
+        writer.increaseIndent();
+        
+        writer.write(`return factory.update${syntaxNode.kind.name}(`);
+        writer.writeLine();
+        writer.increaseIndent();
+        writer.write(`<${syntaxNode.symbol.name}>node`);
+        
+        for (let member of syntaxNode.members) {
+            writer.write(`, `);
+            writer.writeLine();
+            if (member.isNodeArray) {
+                writer.write(`visitNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
+            }
+            else if (member.isModifiersArray) {
+                writer.write(`<ModifiersArray>visitNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
+            }
+            else {
+                writer.write(`visit((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
+            }
+        }
+        
         writer.write(`);`);
         writer.writeLine();
-        
-        writer.write(`return updateFrom(node, newNode);`);
-        writer.writeLine();
-        
         writer.decreaseIndent();
-        writer.write(`}`);
-        writer.writeLine();
-        
-        writer.write(`return node;`);
-        writer.writeLine();
-
         writer.decreaseIndent();
-        writer.write(`}`);
-        writer.writeLine();
     }
-
-    function writeVisitorFunction() {
-        writer.write(`export function transformFallback<TNode extends Node>(node: TNode, transformer: Transformer): TNode;`);
-        writer.writeLine();
-        writer.write(`export function transformFallback(node: Node, transformer: Transformer): Node {`);
-        writer.writeLine();
-        writer.increaseIndent();
-
-        writer.write(`if (!shouldTransformChildrenOfNode(node, transformer)) return node;`);
-        writer.writeLine();
-        
-        writer.write(`switch (node.kind) {`);
-        writer.writeLine();
-        writer.increaseIndent();
-        
-        for (let syntaxNode of syntax) {
-            if (!syntaxNode.hasChildren || syntaxNode.kind.name === "SourceFile") {
-                continue;
-            }
-            
-            writer.write(`case SyntaxKind.${syntaxNode.kind.name}:`);
-            writer.writeLine();
-            writer.increaseIndent();
-            
-            writer.write(`return factory.update${syntaxNode.kind.name}(`);
-            writer.writeLine();
-            writer.increaseIndent();
-            writer.write(`<${syntaxNode.symbol.name}>node`);
-            
-            for (let member of syntaxNode.members) {
-                writer.write(`, `);
-                writer.writeLine();
-                if (member.isNodeArray) {
-                    writer.write(`transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
-                }
-                else if (member.isModifiersArray) {
-                    writer.write(`<ModifiersArray>transformNodes((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
-                }
-                else {
-                    writer.write(`transform((<${syntaxNode.symbol.name}>node).${member.symbol.name}, transformer)`);
-                }
-            }
-            
-            writer.write(`);`);
-            writer.writeLine();
-            writer.decreaseIndent();
-            writer.decreaseIndent();
-        }
-        
-        writer.write(`default:`);
-        writer.writeLine();
-        writer.increaseIndent();
-        writer.write(`return node;`);
-        writer.writeLine();
-        writer.decreaseIndent();        
-        writer.decreaseIndent();
-        writer.write(`}`);
-        writer.writeLine();
-        
-        writer.decreaseIndent();
-        writer.write('}');
-        writer.writeLine();
-    }
+    
+    writer.write(`default:`);
+    writer.writeLine();
+    writer.increaseIndent();
+    writer.write(`return node;`);
+    writer.writeLine();
+    writer.decreaseIndent();
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+    
+    writer.decreaseIndent();
+    writer.write('}');
+    writer.writeLine();
 }

@@ -41,6 +41,12 @@ var compilerSources = [
     "utilities.ts",
     "binder.ts",
     "checker.ts",
+    "transform.ts",
+    "transform.generated.ts",
+    "transforms/es6.ts",
+    "transforms/es5.ts",
+    "transforms/es5modules.ts",
+    "transforms/declarations.ts",
     "declarationEmitter.ts",
     "emitter.ts",
     "program.ts",
@@ -56,10 +62,18 @@ var servicesSources = [
     "sys.ts",
     "types.ts",
     "scanner.ts",
+    "factory.ts",
+    "factory.generated.ts",
     "parser.ts",
     "utilities.ts",
     "binder.ts",
     "checker.ts",
+    "transform.ts",
+    "transform.generated.ts",
+    "transforms/es6.ts",
+    "transforms/es5.ts",
+    "transforms/es5modules.ts",
+    "transforms/declarations.ts",
     "declarationEmitter.ts",
     "emitter.ts",
     "program.ts",
@@ -246,7 +260,7 @@ function compileFile(outFile, sources, prereqs, prefixes, useBuiltCompiler, noOu
         }
 
         if (useDebugMode) {
-            options += " -sourcemap -mapRoot file:///" + path.resolve(path.dirname(outFile));
+            options += " -sourcemap -mapRoot " + path.resolve(path.dirname(outFile));
         }
 
         if (stripInternal) {
@@ -347,6 +361,7 @@ var processTypesJs = path.join(scriptsDirectory, "processTypes.js");
 var processTypesTs = path.join(scriptsDirectory, "processTypes.ts");
 var typesTs = path.join(compilerDirectory, "types.ts");
 var factoryGeneratedTs = path.join(compilerDirectory, "factory.generated.ts");
+var transformGeneratedTs = path.join(compilerDirectory, "transform.generated.ts");
 
 file(processTypesTs);
 
@@ -358,7 +373,7 @@ compileFile(processTypesJs,
             /*useBuiltCompiler*/ false,
             /*noOutFile*/ true);
 
-file(factoryGeneratedTs, [processTypesJs, typesTs], function () {
+file(factoryGeneratedTs, [processTypesJs, typesTs], function() {
     var cmd = "node " + processTypesJs;
     console.log(cmd);
     var ex = jake.createExec([cmd]);
@@ -375,7 +390,9 @@ file(factoryGeneratedTs, [processTypesJs, typesTs], function () {
     ex.run();
 }, { async: true });
 
-task("generate-factory", [factoryGeneratedTs]);
+file(transformGeneratedTs, [factoryGeneratedTs]);
+
+task("generate-factory", [factoryGeneratedTs, transformGeneratedTs]);
 
 // Local target to build the compiler and services
 var tscFile = path.join(builtLocalDirectory, compilerFilename);

@@ -40,91 +40,76 @@ namespace ts {
             let node = <SourceFile>createNode(SyntaxKind.SourceFile);
             return node;
         }
-    }
-    
-    export interface Transformer {
-        transform<TNode extends Node>(node: TNode): TNode;
-        shouldTransformNode?(node: Node): boolean;
-        shouldTransformChildrenOfNode?(node: Node): boolean;
-        shouldCachePreviousNodes?(node: Node): boolean;
-        cacheNode? <TNode extends Node>(node: TNode): TNode;
-        removeMissingNodes?: boolean;
-    }
-    
-    export function transform<TNode extends Node>(node: TNode, transformer: Transformer) {
-        return shouldTransformNode(node, transformer) ? transformNode(node, transformer) 
-            : shouldTransformChildrenOfNode(node, transformer) ? transformFallback(node, transformer)
-            : node;
-    }
-
-    /* @internal */
-    export function shouldTransformNode(node: Node, transformer: Transformer) {
-        return node ? transformer && transformer.shouldTransformNode ? transformer.shouldTransformNode(node) : true : false;
-    }
-    
-    /* @internal */
-    export function shouldTransformChildrenOfNode(node: Node, transformer: Transformer) {
-        return node && transformer && transformer.shouldTransformChildrenOfNode ? transformer.shouldTransformChildrenOfNode(node) : false;
-    }
-    
-    function shouldCachePreviousNodes(node: Node, transformer: Transformer) {
-        return node && transformer && transformer.shouldCachePreviousNodes ? transformer.shouldCachePreviousNodes(node) : false;
-    }
-    
-    function transformNode<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
-        return node && transformer && transformer.transform ? transformer.transform(node) : node;
-    }
-    
-    function cacheNode<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
-        return node && transformer && transformer.cacheNode ? transformer.cacheNode(node) : node;
-    }
-    
-    export function transformNodes<TNode extends Node>(nodes: NodeArray<TNode>, transformer: Transformer): NodeArray<TNode> {
-        if (!nodes || !transformer) {
-            return nodes;
-        }
-
-        let updatedNodes: TNode[];
-        let updatedOffset = 0;
-        let cacheOffset = 0;
-        let removeMissingNodes = transformer.removeMissingNodes;
         
-        for (var i = 0; i < nodes.length; i++) {
-            let updatedIndex = i - updatedOffset;
-            let node = nodes[i];
-            if (shouldCachePreviousNodes(node, transformer)) {
-                if (!updatedNodes) {
-                    updatedNodes = nodes.slice(0, i);
-                }
-
-                while (cacheOffset < updatedIndex) {
-                    updatedNodes[cacheOffset] = cacheNode(updatedNodes[cacheOffset], transformer);
-                    cacheOffset++;
-                }
-
-                cacheOffset = updatedIndex;
-            }
-            
-            let updatedNode = transform(node, transformer);
-            if ((updatedNodes || updatedNode !== node || (!updatedNode && removeMissingNodes))) {
-                if (!updatedNodes) {
-                    updatedNodes = nodes.slice(0, i);
-                }
-                if (!updatedNode && removeMissingNodes) {
-                    updatedOffset++;
-                }
-                else {
-                    updatedNodes[i - updatedOffset] = updatedNode;
-                }
-            }
+        export function createInlineFunctionExpressionEvaluation(parameters: ParameterDeclaration[], bodyStatements: Statement[], _arguments: Expression[]) {
+            return factory.createCallExpression2(
+                factory.createParenthesizedExpression(
+                    factory.createFunctionExpression3(
+                        /*parameters*/ parameters,
+                        /*body*/ factory.createBlock(bodyStatements))),
+                /*_arguments*/ _arguments);
         }
-
-        if (updatedNodes) {
-            (<NodeArray<TNode>>updatedNodes).pos = nodes.pos;
-            (<NodeArray<TNode>>updatedNodes).end = nodes.end;
-            return <NodeArray<TNode>>updatedNodes;
+        
+        export function createParameter2(name: Identifier) {
+            return factory.createParameter(
+                /*decorators*/ undefined,
+                /*modifiers*/ undefined,
+                /*dotDotDotToken*/ undefined,
+                name);
         }
-
-        return nodes;
+        
+        export function createVariableStatement2(name: Identifier, initializer?: Expression) {
+            return factory.createVariableStatement(
+                factory.createVariableDeclarationList([
+                    factory.createVariableDeclaration2(name, initializer)
+                ]));
+        }
+        
+        export function createVariableDeclaration2(name: Identifier, initializer?: Expression) {
+            return factory.createVariableDeclaration(
+                /*decorators*/ undefined,
+                /*modifiers*/ undefined,
+                name,
+                /*type*/ undefined,
+                initializer);
+        }
+        
+        export function createCallExpression2(expression: LeftHandSideExpression, _arguments?: Expression[]) {
+            return factory.createCallExpression(
+                expression,
+                /*typeArguments*/ undefined,
+                factory.createNodeArray(_arguments));
+        }
+        
+        export function createFunctionDeclaration2(name: Identifier, parameters: ParameterDeclaration[], body: Block) {
+            return factory.createFunctionDeclaration(
+                /*decorators*/ undefined,
+                /*modifiers*/ undefined,
+                /*asteriskToken*/ undefined,
+                /*name*/ undefined,
+                /*typeParameters*/ undefined,
+                /*parameters*/ parameters,
+                /*type*/ undefined,
+                /*body*/ body);
+        }
+        
+        export function createFunctionExpression2(name: Identifier, parameters: ParameterDeclaration[], body: Block) {
+            return factory.createFunctionExpression(
+                /*decorators*/ undefined,
+                /*modifiers*/ undefined,
+                /*asteriskToken*/ undefined,
+                /*name*/ undefined,
+                /*typeParameters*/ undefined,
+                /*parameters*/ parameters,
+                /*type*/ undefined,
+                /*body*/ body);
+        }
+        
+        export function createFunctionExpression3(parameters: ParameterDeclaration[], body: Block) {
+            return factory.createFunctionExpression2(
+                /*name*/ undefined,
+                parameters,
+                body);
+        }
     }
 }

@@ -1950,6 +1950,29 @@ namespace ts {
     export function isJavaScript(fileName: string) {
         return fileExtensionIs(fileName, ".js");
     }
+    
+    export function isDestructuringAssignment(node: Node) {
+        if (node.kind === SyntaxKind.BinaryExpression) {
+            let binaryExpr = <BinaryExpression>node;
+            if (binaryExpr.operatorToken.kind === SyntaxKind.EqualsToken) {
+                let left = binaryExpr.left;
+                return left.kind === SyntaxKind.ObjectLiteralExpression 
+                    || left.kind === SyntaxKind.ArrayLiteralExpression;
+            }
+        }
+        
+        return false;
+    }
+    
+    export function getTransformSource(node: Node) {
+        if (node) {
+            while (node.transformSource) {
+                node = node.transformSource;
+            }
+        }
+        
+        return node;
+    }
 
     /**
      * Replace each instance of non-ascii characters by one, two, three, or four escape sequences 

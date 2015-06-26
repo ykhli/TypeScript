@@ -188,6 +188,12 @@ namespace ts {
             var _fs = require("fs");
             var _path = require("path");
             var _os = require('os');
+            
+            try { 
+                // attempt to install the source-map-support library if it is globally available.
+                require("source-map-support").install(); 
+            } catch (e) {
+            }
 
             var platform: string = _os.platform();
             // win32\win64 are case insensitive platforms, MacOS (darwin) by default is also case insensitive

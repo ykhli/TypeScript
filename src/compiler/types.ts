@@ -382,7 +382,7 @@ namespace ts {
         // This node was parsed in a JavaScript file and can be processed differently.  For example
         // its type can be specified usign a JSDoc comment.
         JavaScriptFile = 1 << 6,
-
+        
         // Context flags set directly by the parser.
         ParserGeneratedFlags = DisallowIn | Yield | GeneratorParameter | Decorator | ThisNodeHasError,
 
@@ -391,9 +391,98 @@ namespace ts {
         // Used during incremental parsing to determine if this node or any of its children had an
         // error.  Computed only once and then cached.
         ThisNodeOrAnySubNodesHasError = 1 << 7,
-
+        
         // Used to know if we've computed data from children and cached it in this node.
-        HasAggregatedChildData = 1 << 8
+        HasAggregatedChildData = 1 << 8,
+    }
+    
+    /* @internal */
+    export const enum TransformFlags {
+        ThisNodeNeedsES6Transform = 1 << 1,
+        ThisNodeNeedsES5Transform = 1 << 2,
+        ThisNodeNeedsModuleTransform = 1 << 3,
+        ThisNodeNeedsCapturedThis = 1 << 4,
+        ThisNodeNeedsTransformMask = 
+            ThisNodeNeedsES6Transform |
+            ThisNodeNeedsES5Transform |
+            ThisNodeNeedsModuleTransform |
+            ThisNodeNeedsCapturedThis,
+        
+        // TypeScript to ES6 transforms
+        ThisNodeOrAnySubNodesContainsDecorator = 1 << 5,
+        ThisNodeOrAnySubNodesContainsTypeScript = 1 << 6,
+        ThisNodeOrAnySubNodesNeedsES6TransformMask = 
+            ThisNodeNeedsES6Transform |
+            ThisNodeOrAnySubNodesContainsDecorator |
+            ThisNodeOrAnySubNodesContainsTypeScript,
+        
+        // ES6 to ES5 transforms
+        ThisNodeOrAnySubNodesContainsYield = 1 << 7,
+        ThisNodeOrAnySubNodesContainsBindingPattern = 1 << 8,
+        ThisNodeOrAnySubNodesContainsRestArgument = 1 << 9,
+        ThisNodeOrAnySubNodesContainsInitializer = 1 << 10,
+        ThisNodeOrAnySubNodesContainsSpreadElement = 1 << 11,
+        ThisNodeOrAnySubNodesContainsLetOrConst = 1 << 12,
+        ThisNodeOrAnySubNodesContainsES6 = 1 << 13,
+        ThisNodeOrAnySubNodesContainsCapturedThis = 1 << 14,
+        ThisNodeOrAnySubNodesNeedsES5TransformMask = 
+            ThisNodeNeedsES5Transform |
+            ThisNodeNeedsCapturedThis |
+            ThisNodeOrAnySubNodesContainsYield |
+            ThisNodeOrAnySubNodesContainsBindingPattern |
+            ThisNodeOrAnySubNodesContainsRestArgument |
+            ThisNodeOrAnySubNodesContainsSpreadElement |
+            ThisNodeOrAnySubNodesContainsLetOrConst |
+            ThisNodeOrAnySubNodesContainsCapturedThis |
+            ThisNodeOrAnySubNodesContainsES6,
+            
+        // Helper flags
+        ThisNodeOrAnySubNodesContainsThis = 1 << 13,
+        
+        // Module transforms
+        ThisNodeOrAnySubNodesContainsImportOrExport = 1 << 14,
+        ThisNodeOrAnySubNodesContainsImportOrExportEquals = 1 << 14,
+        ThisNodeOrAnySubNodesContainsModule = 1 << 15,
+        ThisNodeOrAnySubNodesNeedsModuleTransformMask =
+            ThisNodeNeedsModuleTransform |
+            ThisNodeOrAnySubNodesContainsImportOrExport |
+            ThisNodeOrAnySubNodesContainsImportOrExportEquals |
+            ThisNodeOrAnySubNodesContainsModule,
+
+        // A mask for all transforms
+        ThisNodeOrAnySubNodesNeedsTransformMask = 
+            ThisNodeOrAnySubNodesNeedsES6TransformMask |
+            ThisNodeOrAnySubNodesNeedsES5TransformMask |
+            ThisNodeOrAnySubNodesNeedsModuleTransformMask,
+            
+        // Transforms to exclude at a function boundary
+        FunctionScopeExcludes =
+            ThisNodeOrAnySubNodesContainsYield |
+            ThisNodeOrAnySubNodesContainsBindingPattern |
+            ThisNodeOrAnySubNodesContainsRestArgument |
+            ThisNodeOrAnySubNodesContainsInitializer |
+            ThisNodeOrAnySubNodesContainsLetOrConst |
+            ThisNodeOrAnySubNodesContainsThis |
+            ThisNodeOrAnySubNodesContainsCapturedThis,
+
+        // Transforms to exclude at an arrow function boundary
+        ArrowFunctionScopeExcludes =
+            ThisNodeOrAnySubNodesContainsYield |
+            ThisNodeOrAnySubNodesContainsBindingPattern |
+            ThisNodeOrAnySubNodesContainsRestArgument |
+            ThisNodeOrAnySubNodesContainsInitializer |
+            ThisNodeOrAnySubNodesContainsLetOrConst |
+            ThisNodeOrAnySubNodesContainsThis,
+            
+        // Transforms to exclude at a module boundary
+        ModuleScopeExcludes =
+            ThisNodeOrAnySubNodesContainsLetOrConst |
+            ThisNodeOrAnySubNodesContainsThis |
+            ThisNodeOrAnySubNodesContainsCapturedThis, 
+            
+        // Transform to exclude at a call, new, or array literal expression
+        CallOrArrayLiteralExcludes =
+            ThisNodeOrAnySubNodesContainsSpreadElement,
     }
 
     /* @internal */
@@ -413,7 +502,8 @@ namespace ts {
         modifiers?: ModifiersArray;                     // Array of modifiers
         /* @internal */ id?: number;                    // Unique id (used to look up NodeLinks)
         parent?: Node;                                  // Parent node (initialized by binding
-        /* @internal */ original?: Node;                // The original node this was transformed from.
+        /* @internal */ transformFlags?: TransformFlags;// Flags set to track any transformations that need to be applied to a node or its subtree.
+        /* @internal */ transformSource?: Node;         // The original node which was transformed to create this node.
         /* @internal */ jsDocComment?: JSDocComment;    // JSDoc for the node, if it has any.  Only for .js files.
         /* @internal */ symbol?: Symbol;                // Symbol declared by node (initialized by binding)
         /* @internal */ locals?: SymbolTable;           // Locals associated with node (initialized by binding)

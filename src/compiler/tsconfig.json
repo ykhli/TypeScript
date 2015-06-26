@@ -12,16 +12,21 @@
         "sys.ts",
         "types.ts",
         "scanner.ts",
+        "factory.ts",
+        "factory.generated.ts",
         "parser.ts",
         "utilities.ts",
         "binder.ts",
         "checker.ts",
-        "factory.ts",
+        "transform.ts",
+        "transform.generated.ts",
+        "transforms/es6.ts",
+        "transforms/es5.ts",
+        "transforms/es5modules.ts",
         "emitter.ts",
         "program.ts",
         "commandLineParser.ts",
         "tsc.ts",
-        "diagnosticInformationMap.generated.ts",
-        "factory.generated.ts"
+        "diagnosticInformationMap.generated.ts"
     ]
 }

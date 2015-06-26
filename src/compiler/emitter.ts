@@ -52,6 +52,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
         let sourceMapDataList: SourceMapData[] = compilerOptions.sourceMap || compilerOptions.inlineSourceMap ? [] : undefined;
         let diagnostics: Diagnostic[] = [];
         let newLine = host.getNewLine();
+        let transformation = transform.getTransformationChain(compilerOptions);
 
         if (targetSourceFile === undefined) {
             forEach(host.getSourceFiles(), sourceFile => {
@@ -171,6 +172,11 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
             /** Sourcemap data that will get encoded */
             let sourceMapData: SourceMapData;
+
+            let transformResolver: transform.TransformResolver = {
+                getGeneratedNameForNode,
+                getEmitResolver: () => resolver
+            };
 
             if (compilerOptions.sourceMap || compilerOptions.inlineSourceMap) {
                 initializeEmitterWithSourceMaps();
@@ -3245,12 +3251,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
             function emitFunctionDeclaration(node: FunctionLikeDeclaration) {
                 if (nodeIsMissing(node.body)) {
-                    return emitOnlyPinnedOrTripleSlashComments(node);
+                    return emitOnlyPinnedOrTripleSlashComments(getTransformSource(node));
                 }
 
                 if (node.kind !== SyntaxKind.MethodDeclaration && node.kind !== SyntaxKind.MethodSignature) {
                     // Methods will emit the comments as part of emitting method declaration
-                    emitLeadingComments(node);
+                    emitLeadingComments(getTransformSource(node));
                 }
 
                 // For targeting below es6, emit functions-like declaration including arrow function using function keyword.
@@ -5130,7 +5136,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 }
             }
 
-            function processTopLevelVariableAndFunctionDeclarations(node: SourceFile): (Identifier | Declaration)[] {
+            function processTopLevelVariableAndFunctionDeclarations(statements: NodeArray<Statement>): (Identifier | Declaration)[] {
                 // per ES6 spec: 
                 // 15.2.1.16.4 ModuleDeclarationInstantiation() Concrete Method
                 // - var declarations are initialized to undefined - 14.a.ii
@@ -5144,7 +5150,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 let hoistedFunctionDeclarations: FunctionDeclaration[];
                 let exportedDeclarations: (Identifier | Declaration)[];
 
-                visit(node);
+                forEach(statements, visit);
 
                 if (hoistedVars) {
                     writeLine();
@@ -5296,7 +5302,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 return compilerOptions.module === ModuleKind.System && isExternalModule(currentSourceFile);
             }
 
-            function emitSystemModuleBody(node: SourceFile, startIndex: number): void {
+            function emitSystemModuleBody(statements: NodeArray<Statement>, startIndex: number): void {
                 // shape of the body in system modules:
                 // function (exports) {
                 //     <list of local aliases for imports>
@@ -5335,7 +5341,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 // }
                 emitVariableDeclarationsForImports();
                 writeLine();
-                var exportedDeclarations = processTopLevelVariableAndFunctionDeclarations(node);
+                var exportedDeclarations = processTopLevelVariableAndFunctionDeclarations(statements);
                 let exportStarFunction = emitLocalStorageForExportedNamesIfNecessary(exportedDeclarations)
                 writeLine();
                 write("return {");
@@ -5343,7 +5349,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 writeLine();
                 emitSetters(exportStarFunction);
                 writeLine();
-                emitExecute(node, startIndex);
+                emitExecute(statements, startIndex);
                 decreaseIndent();
                 writeLine();
                 write("}"); // return
@@ -5458,12 +5464,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 write("],");
             }
 
-            function emitExecute(node: SourceFile, startIndex: number) {
+            function emitExecute(statements: NodeArray<Statement>, startIndex: number) {
                 write("execute: function() {");
                 increaseIndent();
                 writeLine();
-                for (let i = startIndex; i < node.statements.length; ++i) {
-                    let statement = node.statements[i];
+                for (let i = startIndex; i < statements.length; ++i) {
+                    let statement = statements[i];
                     // - imports/exports are not emitted for system modules
                     // - function declarations are not emitted because they were already hoisted
                     switch (statement.kind) {
@@ -5481,7 +5487,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 write("}") // execute
             }
 
-            function emitSystemModule(node: SourceFile, startIndex: number): void {
+            function emitSystemModule(node: SourceFile, statements: NodeArray<Statement>, startIndex: number): void {
                 collectExternalModuleInfo(node);
                 // System modules has the following shape
                 // System.register(['dep-1', ... 'dep-n'], function(exports) {/* module body function */})
@@ -5510,7 +5516,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 writeLine();
                 increaseIndent();
                 emitCaptureThisForNodeIfNecessary(node);
-                emitSystemModuleBody(node, startIndex);
+                emitSystemModuleBody(statements, startIndex);
                 decreaseIndent();
                 writeLine();
                 write("});");
@@ -5579,7 +5585,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 }
             }
 
-            function emitAMDModule(node: SourceFile, startIndex: number) {
+            function emitAMDModule(node: SourceFile, statements: NodeArray<Statement>, startIndex: number) {
                 collectExternalModuleInfo(node);
 
                 writeLine();
@@ -5592,7 +5598,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 increaseIndent();
                 emitExportStarHelper();
                 emitCaptureThisForNodeIfNecessary(node);
-                emitLinesStartingAt(node.statements, startIndex);
+                emitLinesStartingAt(statements, startIndex);
                 emitTempDeclarations(/*newLine*/ true);
                 emitExportEquals(/*emitAsReturn*/ true);
                 decreaseIndent();
@@ -5600,16 +5606,16 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 write("});");
             }
 
-            function emitCommonJSModule(node: SourceFile, startIndex: number) {
+            function emitCommonJSModule(node: SourceFile, statements: NodeArray<Statement>, startIndex: number) {
                 collectExternalModuleInfo(node);
                 emitExportStarHelper();
                 emitCaptureThisForNodeIfNecessary(node);
-                emitLinesStartingAt(node.statements, startIndex);
+                emitLinesStartingAt(statements, startIndex);
                 emitTempDeclarations(/*newLine*/ true);
                 emitExportEquals(/*emitAsReturn*/ false);
             }
 
-            function emitUMDModule(node: SourceFile, startIndex: number) {
+            function emitUMDModule(node: SourceFile, statements: NodeArray<Statement>, startIndex: number) {
                 collectExternalModuleInfo(node);
 
                 // Module is detected first to support Browserify users that load into a browser with an AMD loader
@@ -5626,7 +5632,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 increaseIndent();
                 emitExportStarHelper();
                 emitCaptureThisForNodeIfNecessary(node);
-                emitLinesStartingAt(node.statements, startIndex);
+                emitLinesStartingAt(statements, startIndex);
                 emitTempDeclarations(/*newLine*/ true);
                 emitExportEquals(/*emitAsReturn*/ true);
                 decreaseIndent();
@@ -5634,13 +5640,13 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 write("});");
             }
 
-            function emitES6Module(node: SourceFile, startIndex: number) {
+            function emitES6Module(node: SourceFile, statements: NodeArray<Statement>, startIndex: number) {
                 externalImports = undefined;
                 exportSpecifiers = undefined;
                 exportEquals = undefined;
                 hasExportStars = false;
                 emitCaptureThisForNodeIfNecessary(node);
-                emitLinesStartingAt(node.statements, startIndex);
+                emitLinesStartingAt(statements, startIndex);
                 emitTempDeclarations(/*newLine*/ true);
                 // Emit exportDefault if it exists will happen as part 
                 // or normal statement emit.
@@ -5688,9 +5694,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 // Start new file on new line
                 writeLine();
                 emitDetachedComments(node);
+                
+                // Perform any necessary transformations
+                let statements = transformation(transformResolver, node, node.statements);
 
                 // emit prologue directives prior to __extends
-                var startIndex = emitDirectivePrologues(node.statements, /*startWithNewLine*/ false);
+                var startIndex = emitDirectivePrologues(statements, /*startWithNewLine*/ false);
 
                 // Only emit helpers if the user did not say otherwise.
                 if (!compilerOptions.noEmitHelpers) {
@@ -5717,19 +5726,19 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
                 if (isExternalModule(node) || compilerOptions.isolatedModules) {
                     if (languageVersion >= ScriptTarget.ES6) {
-                        emitES6Module(node, startIndex);
+                        emitES6Module(node, statements, startIndex);
                     }
                     else if (compilerOptions.module === ModuleKind.AMD) {
-                        emitAMDModule(node, startIndex);
+                        emitAMDModule(node, statements, startIndex);
                     }
                     else if (compilerOptions.module === ModuleKind.System) {
-                        emitSystemModule(node, startIndex);
+                        emitSystemModule(node, statements, startIndex);
                     }
                     else if (compilerOptions.module === ModuleKind.UMD) {
-                        emitUMDModule(node, startIndex);
+                        emitUMDModule(node, statements, startIndex);
                     }
                     else {
-                        emitCommonJSModule(node, startIndex);
+                        emitCommonJSModule(node, statements, startIndex);
                     }
                 }
                 else {
@@ -5738,7 +5747,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                     exportEquals = undefined;
                     hasExportStars = false;
                     emitCaptureThisForNodeIfNecessary(node);
-                    emitLinesStartingAt(node.statements, startIndex);
+                    emitLinesStartingAt(statements, startIndex);
                     emitTempDeclarations(/*newLine*/ true);
                 }
 
