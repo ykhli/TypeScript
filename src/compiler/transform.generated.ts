@@ -2,12 +2,9 @@
 /// <reference path="factory.ts" />
 /// <reference path="transform.ts" />
 namespace ts.transform {
-    function transformerShouldTransformChildrenOfNode(transformer: Transformer, node: Node) {
-        return node && transformer && transformer.shouldTransformChildrenOfNode ? transformer.shouldTransformChildrenOfNode(node, transformer) : false;
-    }
     export function visitChildren<TNode extends Node>(node: TNode, transformer: Transformer): TNode;
     export function visitChildren(node: Node, transformer: Transformer): Node {
-        if (!transformerShouldTransformChildrenOfNode(transformer, node)) return node;
+        if (!node || !transformer || !transformer.shouldTransformChildrenOfNode(node)) return node;
         switch (node.kind) {
             case SyntaxKind.QualifiedName:
                 return factory.updateQualifiedName(

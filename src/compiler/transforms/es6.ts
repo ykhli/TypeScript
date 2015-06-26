@@ -1,28 +1,17 @@
 /// <reference path="../transform.ts" />
 namespace ts.transform {
-    let getES6Transformer = memoize(createES6Transformer);
-
-    export function toES6(resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>): NodeArray<Statement> {
-        return transformSourceFile(resolver, sourceFile, statements, getES6Transformer());
+    export function toES6(resolver: TransformResolver, statements: NodeArray<Statement>): NodeArray<Statement> {
+        return visitNodes(statements, new ES6Transformer(resolver));
     }
-
-    function createES6Transformer(): Transformer {
-        function transformNode(node: Node): Node {
-            return node;
-        }
-        
-        function shouldTransformNode(node: Node) {
+    
+    /* @internal */
+    export class ES6Transformer extends Transformer {
+        shouldTransformNode(node: Node) {
             return !!(node.transformFlags & TransformFlags.ThisNodeNeedsES6Transform);
         }
 
-        function shouldTransformChildrenOfNode(node: Node) {
+        shouldTransformChildrenOfNode(node: Node) {
             return !!(node.transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES6TransformMask);
         }
-        
-        return {
-            transformNode,
-            shouldTransformNode,
-            shouldTransformChildrenOfNode
-        };
     }
 }

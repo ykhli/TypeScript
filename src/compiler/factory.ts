@@ -86,11 +86,18 @@ namespace ts {
                 /*decorators*/ undefined,
                 /*modifiers*/ undefined,
                 /*asteriskToken*/ undefined,
-                /*name*/ undefined,
+                /*name*/ name,
                 /*typeParameters*/ undefined,
                 /*parameters*/ parameters,
                 /*type*/ undefined,
                 /*body*/ body);
+        }
+
+        export function createFunctionDeclaration3(name: Identifier, parameters: ParameterDeclaration[], body: Statement[]) {
+            return factory.createFunctionDeclaration2(
+                name,
+                parameters,
+                factory.createBlock(body));
         }
         
         export function createFunctionExpression2(name: Identifier, parameters: ParameterDeclaration[], body: Block) {
@@ -110,6 +117,27 @@ namespace ts {
                 /*name*/ undefined,
                 parameters,
                 body);
+        }
+
+        export function createFunctionExpression4(name: Identifier, parameters: ParameterDeclaration[], body: Statement[]) {
+            return factory.createFunctionExpression2(
+                name,
+                parameters,
+                factory.createBlock(body));
+        }
+
+        export function createFunctionExpression5(parameters: ParameterDeclaration[], body: Statement[]) {
+            return factory.createFunctionExpression2(
+                /*name*/ undefined,
+                parameters,
+                factory.createBlock(body));
+        }
+        
+        export function createPropertyAccessExpression2(expression: LeftHandSideExpression, propertyName: Identifier) {
+            return factory.createPropertyAccessExpression(
+                expression,
+                factory.createNode(SyntaxKind.DotToken),
+                propertyName);
         }
     }
 }

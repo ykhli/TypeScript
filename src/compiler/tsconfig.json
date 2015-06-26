@@ -23,6 +23,7 @@
         "transforms/es6.ts",
         "transforms/es5.ts",
         "transforms/es5modules.ts",
+        "transforms/es5generator.ts",
         "emitter.ts",
         "program.ts",
         "commandLineParser.ts",

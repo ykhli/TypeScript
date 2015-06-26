@@ -1,86 +1,115 @@
 /// <reference path="../transform.ts" />
-
 namespace ts.transform {
-    let getES5Transformer = memoize(createES5Transformer);
-    
-    export function toES5(resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>): NodeArray<Statement> {
-        return transformSourceFile(resolver, sourceFile, statements, getES5Transformer());
+    export function toES5(resolver: TransformResolver, statements: NodeArray<Statement>): NodeArray<Statement> {
+        return visitNodes(statements, new ES5Transformer(resolver));
     }
     
-    function createES5Transformer(): Transformer {
-        let transformResolver: TransformResolver;
-        let emitResolver: EmitResolver;
-        let sourceFile: SourceFile;
-        let transformer = {
-            initialize,
-            transformNode,
-            shouldTransformNode,
-            shouldTransformChildrenOfNode,
-            dispose,
-        };
-        
-        return transformer;
-        
-        function initialize(_resolver: TransformResolver, _sourceFile: SourceFile) {
-            transformResolver = _resolver;
-            emitResolver = transformResolver.getEmitResolver();
-            sourceFile = _sourceFile;
-        }
-        
-        function dispose() {
-            transformResolver = undefined;
-            emitResolver = undefined;
-            sourceFile = undefined;
-        }
-
-        function shouldTransformNode(node: Node) {
+    export class ES5Transformer extends Transformer {
+        public shouldTransformNode(node: Node) {
             return !!(node.transformFlags & TransformFlags.ThisNodeNeedsES5Transform);
         }
         
-        function shouldTransformChildrenOfNode(node: Node) {
+        public shouldTransformChildrenOfNode(node: Node) {
             return !!(node.transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES5TransformMask);
-        }
-        
-        function transformNode(node: Node, transformer: Transformer): Node {
-            // switch (node.kind) {
-            //     case SyntaxKind.ArrowFunction:
-            //         return transformArrowFunction(<ArrowFunction>node, transformer);
-                    
-            //     case SyntaxKind.FunctionExpression:
-            //     case SyntaxKind.FunctionDeclaration:
-            //     case SyntaxKind.MethodDeclaration:
-            //         return transformFunctionLikeDeclaration(<FunctionLikeDeclaration>node, transformer);
-            // }
-            return visitChildren(node, transformer);
-        }
-        
-        function transformArrowFunction(node: ArrowFunction, transformer: Transformer) {
-            return factory.createFunctionExpression3(
-                visitNodes(node.parameters, transformer),
-                transformArrowFunctionBody(node.body, transformer));
-        }
-        
-        function transformArrowFunctionBody(body: Block | Expression, transformer: Transformer) {
-            if (body.kind === SyntaxKind.Block) {
-                return visit(<Block>body, transformer);
+        }        
+
+        public transformNode(node: Node): Node {
+            switch (node.kind) {
+                case SyntaxKind.ArrowFunction:
+                case SyntaxKind.FunctionExpression:
+                case SyntaxKind.FunctionDeclaration:
+                    return this.transformFunctionLikeDeclaration(<FunctionLikeDeclaration>node);
             }
             
-            let node = factory.createBlock([
-                factory.createReturnStatement(
-                    visit(<Expression>body, transformer)
-                )
-            ]);
-            
-            node.transformSource = body;
-            return node;
+            return visitChildren(node, this);
         }
         
-        function transformFunctionLikeDeclaration(node: FunctionLikeDeclaration, transformer: Transformer) {
-            if ((<FunctionLikeDeclaration>node).asteriskToken) {
+        private transformFunctionLikeDeclaration(node: FunctionLikeDeclaration): FunctionLikeDeclaration {
+            let transformer = new ES5FunctionTransformer(this);
+            return transformer.transformFunctionLikeDeclaration(node);
+        }
+    }
+    
+    export class ES5FunctionTransformer extends ES5Transformer {
+        public parameters: ParameterDeclaration[];
+        public statements: Statement[] = [];
+        
+        constructor(previous: ES5Transformer) {
+            super(previous.transformResolver, previous, TransformerScope.Function);
+        }
+        
+        public transform(node: FunctionLikeDeclaration): FunctionLikeDeclaration {
+            // If any parameters containing binding patterns, initializers, or a rest argument
+            // we need to transform the parameter list
+            if (node.transformFlags & TransformFlags.FunctionParameterMask) {
+                this.parameters = [];
+                visitNodes(node.parameters, this);
             }
+            else {
+                this.parameters = node.parameters;
+            }
+
+            // If any arrow function captures the 'this' of this function, we need
+            // to add a statement to capture 'this' as '_this'
             if (node.transformFlags & TransformFlags.ThisNodeNeedsCapturedThis) {
+                this.statements.push(
+                    factory.createVariableStatement2(
+                        factory.createIdentifier("_this"),
+                        factory.createIdentifier("this")
+                    )
+                );
             }
-            return visitChildren(node, transformer);
+            
+            // If the function is a generator, we need to transform the body
+            if (node.asteriskToken) {
+                this.transformGeneratorBody(<Block>node.body);
+            }
+            else if (node.kind === SyntaxKind.ArrowFunction) {
+                this.transformArrowFunctionBody(node.body);
+            }
+
+            // Create the return value
+            let newNode: FunctionLikeDeclaration;
+            switch (node.kind) {
+                case SyntaxKind.ArrowFunction:
+                case SyntaxKind.FunctionExpression:
+                    return factory.createFunctionExpression4(
+                        <Identifier>node.name,
+                        this.parameters,
+                        this.statements);
+
+                case SyntaxKind.FunctionDeclaration:
+                    return factory.createFunctionDeclaration3(
+                        <Identifier>node.name,
+                        this.parameters,
+                        this.statements);
+                        
+                case SyntaxKind.MethodDeclaration:
+                    // NOTE: need to handle this...
+            }
+            
+            return newNode;
+        }
+
+        private transformGeneratorBody(node: Block) {
+            let transformer = new ES5GeneratorBodyTransformer(this);
+            return transformer.transform(node);
+        }
+        
+        private transformArrowFunctionBody(body: Block | Expression) {
+            let offset = this.statements.length;
+            if (body.kind === SyntaxKind.Block) {
+                let statements = visitNodes((<Block>body).statements, this);
+                for (let statement of statements) {
+                    this.statements.splice(offset++, 0, statement);
+                }
+            }
+            else {
+                let statement = factory.createReturnStatement(
+                    visit(<Expression>body, this)
+                );                    
+                this.statements.splice(offset, 0, statement);
+            }
         }
     }
 }

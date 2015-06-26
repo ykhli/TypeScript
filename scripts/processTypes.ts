@@ -728,14 +728,6 @@ function writeUpdateFunction(syntaxNode: SyntaxNode) {
 }
 
 function writeVisitorHelperFunctions() {
-    writer.write(`function transformerShouldTransformChildrenOfNode(transformer: Transformer, node: Node) {`);
-    writer.writeLine();
-    writer.increaseIndent();
-    writer.write(`return node && transformer && transformer.shouldTransformChildrenOfNode ? transformer.shouldTransformChildrenOfNode(node, transformer) : false;`);
-    writer.writeLine();
-    writer.decreaseIndent();
-    writer.write(`}`);
-    writer.writeLine();
 }
 
 function writeVisitorFunction() {
@@ -745,7 +737,7 @@ function writeVisitorFunction() {
     writer.writeLine();
     writer.increaseIndent();
 
-    writer.write(`if (!transformerShouldTransformChildrenOfNode(transformer, node)) return node;`);
+    writer.write(`if (!node || !transformer || !transformer.shouldTransformChildrenOfNode(node)) return node;`);
     writer.writeLine();
     
     writer.write(`switch (node.kind) {`);

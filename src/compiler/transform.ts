@@ -1,72 +1,75 @@
 /// <reference path="factory.ts" />
 /// <reference path="transform.generated.ts" />
 namespace ts.transform {
-    export type Transformation = (resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>) => NodeArray<Statement>;
+    export type Transformation = (resolver: TransformResolver, statements: NodeArray<Statement>) => NodeArray<Statement>;
 
-    export interface Transformer {
-        initialize?(resolver: TransformResolver, node: SourceFile): void;
-        dispose?(): void;
-        transformNode?<TNode extends Node>(node: TNode, transformer?: Transformer): TNode;
-        shouldTransformNode?(node: Node, transformer?: Transformer): boolean;
-        shouldTransformChildrenOfNode?(node: Node, transformer?: Transformer): boolean;
-        shouldCachePreviousNodes?(node: Node, transformer?: Transformer): boolean;
-        cacheNode?<TNode extends Node>(node: TNode, transformer?: Transformer): TNode;
-        removeMissingNodes?: boolean;
-        previous?: Transformer;
+    export const enum TransformerScope {
+    	None,
+    	Function
     }
     
+    export class Transformer {
+    	public scope: TransformerScope;
+    	public previous: Transformer;
+    	public transformResolver: TransformResolver;
+    	public emitResolver: EmitResolver;
+    
+    	constructor(resolver: TransformResolver, previous?: Transformer, scope?: TransformerScope) {
+    		this.transformResolver = resolver;
+    		this.emitResolver = resolver.getEmitResolver();
+    		this.previous = previous;
+    		this.scope = scope;
+    	}
+    	
+    	public transformNode(node: Node): Node {
+    		return this.previous ? this.previous.transformNode(node) : node; 
+    	}	
+    	
+    	public cacheNode(node: Node): Node { 
+    		return this.previous ? this.previous.cacheNode(node) : node; 
+    	}
+    	
+    	public shouldTransformNode(node: Node): boolean { 
+    		return this.previous ? this.previous.shouldTransformNode(node) : true; 
+    	}
+    	
+    	public shouldTransformChildrenOfNode(node: Node): boolean { 
+    		return this.previous ? this.previous.shouldTransformChildrenOfNode(node) : false; 
+    	}
+    	
+    	public shouldCachePreviousNodes(node: Node): boolean { 
+    		return this.previous ? this.previous.shouldCachePreviousNodes(node) : false; 
+    	}
+    	
+    	public shouldRemoveMissingNodes(): boolean {
+    		return this.previous ? this.previous.shouldRemoveMissingNodes() : false;
+    	}
+        
+        public shouldPopTransformerScope(node: Node): boolean {
+            return this.scope === TransformerScope.Function 
+                && isFunctionLike(node);
+        }
+    }    
+
     export interface TransformResolver {
         getGeneratedNameForNode(node: Node): string;
+        makeTempVariableName(): string;
+        makeUniqueName(baseName: string): string;
         getEmitResolver(): EmitResolver;
     }
 
-    function transformerShouldTransformNode(transformer: Transformer, node: Node) {
-        return node ? transformer && transformer.shouldTransformNode ? transformer.shouldTransformNode(node, transformer) : true : false;
-    }
-    
-    function transformerShouldTransformChildrenOfNode(transformer: Transformer, node: Node) {
-        return node && transformer && transformer.shouldTransformChildrenOfNode ? transformer.shouldTransformChildrenOfNode(node, transformer) : false;
-    }
-    
-    function transformerShouldCachePreviousNodes(transformer: Transformer, node: Node) {
-        return node && transformer && transformer.shouldCachePreviousNodes ? transformer.shouldCachePreviousNodes(node, transformer) : false;
-    }
-    
-    function transformerShouldRemoveMissingNodes(transformer: Transformer) {
-        return transformer ? transformer.removeMissingNodes : false;
-    }
-    
-    function transformerTransformNode<TNode extends Node>(transformer: Transformer, node: TNode): TNode {
-        return node && transformer && transformer.transformNode ? transformer.transformNode(node, transformer) : node;
-    }
-    
-    function transformerCacheNode<TNode extends Node>(transformer: Transformer, node: TNode): TNode {
-        return node && transformer && transformer.cacheNode ? transformer.cacheNode(node, transformer) : node;
-    }
-    
-    function transformerInitialize(transformer: Transformer, resolver: TransformResolver, node: SourceFile) {
-        if (transformer && transformer.initialize) {
-            transformer.initialize(resolver, node);
+    export function visit<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
+        if (!node || !transformer) {
+            return node;
         }
-    }
-    
-    function transformerDispose(transformer: Transformer) {
-        if (transformer && transformer.dispose) {
-            transformer.dispose();
+        
+        if (transformer.shouldPopTransformerScope(node)) {
+            transformer = transformer.previous;
         }
-    }
-    
-    export function transformSourceFile(resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>, transformer: Transformer): NodeArray<Statement> {
-        transformerInitialize(transformer, resolver, sourceFile);
-        statements = visitNodes(statements, transformer);
-        transformerDispose(transformer);
-        return statements;
-    }
-    
-    export function visit<TNode extends Node>(node: TNode, transformer: Transformer) {
+        
         let transformed = 
-            transformerShouldTransformNode(transformer, node) ? transformerTransformNode(transformer, node) : 
-            transformerShouldTransformChildrenOfNode(transformer, node) ? visitChildren(node, transformer) : 
+            transformer.shouldTransformNode(node) ? transformer.transformNode(node) :
+            transformer.shouldTransformChildrenOfNode(node) ? visitChildren(node, transformer) : 
             node;
         
         // if the transformed node differs from the source node, set the source pointer.
@@ -74,7 +77,7 @@ namespace ts.transform {
             transformed.transformSource = node;
         }
         
-        return transformed;
+        return <TNode>transformed;
     }
 
     export function visitNodes<TNode extends Node>(nodes: NodeArray<TNode>, transformer: Transformer): NodeArray<TNode> {
@@ -85,18 +88,18 @@ namespace ts.transform {
         let updatedNodes: TNode[];
         let updatedOffset = 0;
         let cacheOffset = 0;
-        let removeMissingNodes = transformerShouldRemoveMissingNodes(transformer);
+        let removeMissingNodes = transformer.shouldRemoveMissingNodes();
         
         for (var i = 0; i < nodes.length; i++) {
             let updatedIndex = i - updatedOffset;
             let node = nodes[i];
-            if (transformerShouldCachePreviousNodes(transformer, node)) {
+            if (transformer.shouldCachePreviousNodes(node)) {
                 if (!updatedNodes) {
                     updatedNodes = nodes.slice(0, i);
                 }
 
                 while (cacheOffset < updatedIndex) {
-                    updatedNodes[cacheOffset] = transformerCacheNode(transformer, updatedNodes[cacheOffset]);
+                    updatedNodes[cacheOffset] = <TNode>transformer.cacheNode(updatedNodes[cacheOffset]);
                     cacheOffset++;
                 }
 
@@ -158,46 +161,40 @@ namespace ts.transform {
         }
     }
     
-    export function chainTransformer(source: Transformer, overrides: Transformer) {
-        let transformer = assign(clone(source), overrides);
-        transformer.previous = source;
-        return transformer;
-    }
-
     function createUnaryTransformationChain(only: Transformation) {
-        return function (resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>) {
-            if (only) statements = only(resolver, sourceFile, statements);
+        return function (resolver: TransformResolver, statements: NodeArray<Statement>) {
+            if (only) statements = only(resolver, statements);
             return statements;
         };
     }
     
     function createBinaryTransformationChain(first: Transformation, second: Transformation) {
-        return function (resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>) {
-            if (first) statements = first(resolver, sourceFile, statements);
-            if (second) statements = second(resolver, sourceFile, statements);
+        return function (resolver: TransformResolver, statements: NodeArray<Statement>) {
+            if (first) statements = first(resolver, statements);
+            if (second) statements = second(resolver, statements);
             return statements;
         };
     }
     
     function createTrinaryTransformationChain(first: Transformation, second: Transformation, third: Transformation) {
-        return function (resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>) {
-            if (first) statements = first(resolver, sourceFile, statements);
-            if (second) statements = second(resolver, sourceFile, statements);
-            if (third) statements = third(resolver, sourceFile, statements);
+        return function (resolver: TransformResolver, statements: NodeArray<Statement>) {
+            if (first) statements = first(resolver, statements);
+            if (second) statements = second(resolver, statements);
+            if (third) statements = third(resolver, statements);
             return statements;
         };
     }
     
     function createNaryTransformationChain(transformations: Transformation[]) {
-        return function (resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>) {
+        return function (resolver: TransformResolver, statements: NodeArray<Statement>) {
             for (let transformation of transformations) {
-                if (transformation) statements = transformation(resolver, sourceFile, statements);
+                if (transformation) statements = transformation(resolver, statements);
             }
             return statements;
         };
     }
     
-    function identityTransformation(resolver: TransformResolver, sourceFile: SourceFile, statements: NodeArray<Statement>): NodeArray<Statement> {
+    function identityTransformation(resolver: TransformResolver, statements: NodeArray<Statement>): NodeArray<Statement> {
         return statements;
     }
 }

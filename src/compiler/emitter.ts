@@ -174,8 +174,10 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
             let sourceMapData: SourceMapData;
 
             let transformResolver: transform.TransformResolver = {
+                getEmitResolver: () => resolver,
                 getGeneratedNameForNode,
-                getEmitResolver: () => resolver
+                makeTempVariableName: () => makeTempVariableName(TempFlags.Auto),
+                makeUniqueName,
             };
 
             if (compilerOptions.sourceMap || compilerOptions.inlineSourceMap) {
@@ -5696,7 +5698,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 emitDetachedComments(node);
                 
                 // Perform any necessary transformations
-                let statements = transformation(transformResolver, node, node.statements);
+                let statements = transformation(transformResolver, node.statements);
 
                 // emit prologue directives prior to __extends
                 var startIndex = emitDirectivePrologues(statements, /*startWithNewLine*/ false);

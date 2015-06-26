@@ -958,97 +958,47 @@ namespace ts {
         
         function markTransformsForNode(node: Node) {
             switch (node.kind) {
-                case SyntaxKind.ThisKeyword:
-                    transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsThis;
-                    break;
+                // case SyntaxKind.ThisKeyword:
+                //     transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsThis;
+                //     break;
                     
-                // TypeScript to ES6 transforms
-                case SyntaxKind.EnumDeclaration:
-                case SyntaxKind.ModuleDeclaration:
-                    transformFlags |= TransformFlags.ThisNodeNeedsES6Transform;
-                    break;
+                // // TypeScript to ES6 transforms
+                // case SyntaxKind.EnumDeclaration:
+                // case SyntaxKind.ModuleDeclaration:
+                //     transformFlags |= TransformFlags.ThisNodeNeedsES6Transform;
+                //     break;
 
-                case SyntaxKind.Decorator:
-                    transformFlags |= TransformFlags.ThisNodeNeedsES6Transform | TransformFlags.ThisNodeOrAnySubNodesContainsDecorator;
-                    break;
+                // case SyntaxKind.Decorator:
+                //     transformFlags |= 
+                //         TransformFlags.ThisNodeNeedsES6Transform | 
+                //         TransformFlags.ThisNodeOrAnySubNodesContainsDecorator;
+                //     break;
                     
-                // ES6 to ES5 transforms
-                case SyntaxKind.ImportDeclaration:
-                case SyntaxKind.ExportDeclaration:
-                    transformFlags |= TransformFlags.ThisNodeNeedsModuleTransform | TransformFlags.ThisNodeOrAnySubNodesContainsImportOrExport;
-                    break;
+                // // ES6 to ES5 transforms
+                // case SyntaxKind.ImportDeclaration:
+                // case SyntaxKind.ExportDeclaration:
+                //     transformFlags |= 
+                //         TransformFlags.ThisNodeNeedsModuleTransform | 
+                //         TransformFlags.ThisNodeOrAnySubNodesContainsImportOrExport;
+                //     break;
                     
-                case SyntaxKind.ClassDeclaration:
-                case SyntaxKind.ClassExpression:
+                // case SyntaxKind.ClassDeclaration:
+                // case SyntaxKind.ClassExpression:
                 case SyntaxKind.MethodDeclaration:
-                case SyntaxKind.ShorthandPropertyAssignment:
-                case SyntaxKind.ComputedPropertyName:
-                case SyntaxKind.ForOfStatement:
-                case SyntaxKind.TaggedTemplateExpression:
-                case SyntaxKind.TemplateExpression:
-                case SyntaxKind.TemplateHead:
-                case SyntaxKind.TemplateMiddle:
-                case SyntaxKind.TemplateTail:
-                case SyntaxKind.NoSubstitutionTemplateLiteral:
-                case SyntaxKind.BindingElement:
-                // case SyntaxKind.NewTargetExpression:
+                // case SyntaxKind.ShorthandPropertyAssignment:
+                // case SyntaxKind.ComputedPropertyName:
+                // case SyntaxKind.ForOfStatement:
+                // case SyntaxKind.TaggedTemplateExpression:
+                // case SyntaxKind.TemplateExpression:
+                // case SyntaxKind.TemplateHead:
+                // case SyntaxKind.TemplateMiddle:
+                // case SyntaxKind.TemplateTail:
+                // case SyntaxKind.NoSubstitutionTemplateLiteral:
+                // case SyntaxKind.BindingElement:
+                // // case SyntaxKind.NewTargetExpression:
                     transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
                     break;
-
-                case SyntaxKind.ArrowFunction:
-                    if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesContainsThis) {
-                        transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsCapturedThis;
-                    }
                     
-                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
-                    break;
-
-                case SyntaxKind.GetAccessor:
-                case SyntaxKind.SetAccessor:
-                    if (isClassLike(node.parent)) {
-                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
-                    }
-                    break;
-
-                case SyntaxKind.ArrayBindingPattern:
-                case SyntaxKind.ObjectBindingPattern:
-                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsBindingPattern;
-                    break;
-                    
-                case SyntaxKind.SpreadElementExpression:
-                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsSpreadElement;
-                    break;
-                    
-                case SyntaxKind.BinaryExpression:
-                    if (isDestructuringAssignment(node)) {
-                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
-                    }
-                    
-                    break;
-                    
-                case SyntaxKind.Parameter:
-                    if ((<ParameterDeclaration>node).initializer) {
-                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsInitializer;
-                    }
-                    else if ((<ParameterDeclaration>node).dotDotDotToken) {
-                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsRestArgument;
-                    }
-                    
-                    break;
-                    
-                case SyntaxKind.VariableDeclarationList:
-                    if (node.flags & (NodeFlags.Let | NodeFlags.Const)) {
-                        transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsLetOrConst;
-                    }
-                    
-                    break;
-                    
-                case SyntaxKind.YieldExpression:
-                // case SyntaxKind.AwaitExpression:
-                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsYield;
-                    break;
-                    
-                case SyntaxKind.MethodDeclaration:
                 case SyntaxKind.FunctionDeclaration:
                 case SyntaxKind.FunctionExpression:
                     if ((<FunctionLikeDeclaration>node).asteriskToken /* ||
@@ -1058,11 +1008,65 @@ namespace ts {
                     
                     break;
 
-                // Module transforms
-                case SyntaxKind.ImportEqualsDeclaration:
-                case SyntaxKind.ExportAssignment:
-                    transformFlags |= TransformFlags.ThisNodeNeedsModuleTransform | TransformFlags.ThisNodeOrAnySubNodesContainsImportOrExportEquals;
+                // case SyntaxKind.ArrowFunction:
+                //     if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesContainsThis) {
+                //         transformFlags |= TransformFlags.ThisNodeOrAnySubNodesContainsCapturedThis;
+                //     }
+                    
+                //     transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                //     break;
+
+                // case SyntaxKind.GetAccessor:
+                // case SyntaxKind.SetAccessor:
+                //     if (isClassLike(node.parent)) {
+                //         transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                //     }
+                //     break;
+
+                // case SyntaxKind.ArrayBindingPattern:
+                // case SyntaxKind.ObjectBindingPattern:
+                //     transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsBindingPattern;
+                //     break;
+                    
+                // case SyntaxKind.SpreadElementExpression:
+                //     transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsSpreadElement;
+                //     break;
+                    
+                // case SyntaxKind.BinaryExpression:
+                //     if (isDestructuringAssignment(node)) {
+                //         transformFlags |= TransformFlags.ThisNodeNeedsES5Transform;
+                //     }
+                    
+                //     break;
+                    
+                // case SyntaxKind.Parameter:
+                //     if ((<ParameterDeclaration>node).initializer) {
+                //         transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsInitializer;
+                //     }
+                //     else if ((<ParameterDeclaration>node).dotDotDotToken) {
+                //         transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsRestArgument;
+                //     }
+                    
+                //     break;
+                    
+                // case SyntaxKind.VariableDeclarationList:
+                //     if (node.flags & (NodeFlags.Let | NodeFlags.Const)) {
+                //         transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsLetOrConst;
+                //     }
+                    
+                //     break;
+                    
+                case SyntaxKind.YieldExpression:
+                // case SyntaxKind.AwaitExpression:
+                    transformFlags |= TransformFlags.ThisNodeNeedsES5Transform | TransformFlags.ThisNodeOrAnySubNodesContainsYield;
                     break;
+
+                // // Module transforms
+                // case SyntaxKind.ImportEqualsDeclaration:
+                // case SyntaxKind.ExportAssignment:
+                //     transformFlags |= TransformFlags.ThisNodeNeedsModuleTransform | 
+                //         TransformFlags.ThisNodeOrAnySubNodesContainsImportOrExportEquals;
+                //     break;
             }
             
             if (transformFlags & TransformFlags.ThisNodeOrAnySubNodesNeedsES6TransformMask) {
@@ -1096,7 +1100,6 @@ namespace ts {
         }
 
         function finishNode<T extends Node>(node: T, end?: number): T {
-            debugger;
             node.end = end === undefined ? scanner.getStartPos() : end;
             
             if (!(node.flags & NodeFlags.Ambient)) {

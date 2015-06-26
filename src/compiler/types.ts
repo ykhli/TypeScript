@@ -483,6 +483,11 @@ namespace ts {
         // Transform to exclude at a call, new, or array literal expression
         CallOrArrayLiteralExcludes =
             ThisNodeOrAnySubNodesContainsSpreadElement,
+            
+        FunctionParameterMask =
+            ThisNodeOrAnySubNodesContainsBindingPattern |
+            ThisNodeOrAnySubNodesContainsRestArgument |
+            ThisNodeOrAnySubNodesContainsInitializer,
     }
 
     /* @internal */
