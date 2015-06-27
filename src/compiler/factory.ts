@@ -8,10 +8,20 @@ namespace ts {
     }
 
     export namespace factory {
+        export function setTextRange<TNode extends Node>(node: TNode, range: TextRange): TNode {
+            if (!node || !range) {
+                return node;
+            }
+            
+            node.pos = range.pos;
+            node.end = range.end;
+            return node;
+        }
+        
         export function createNode<T extends Node>(kind: SyntaxKind): T {
             return <T>new (getNodeConstructor(kind))();
         }
-
+        
         export function createNodeArray<TNode extends Node>(elements?: TNode[]) {
             let nodes = <NodeArray<TNode>>(elements || []);
             if (nodes.pos === undefined) {
@@ -140,8 +150,10 @@ namespace ts {
                 propertyName);
         }
         
-        export function createNumericLiteral2(value: number): LiteralExpression {
-            return factory.createNumericLiteral(String(value));
+        export function createNumericLiteral2(value: number, trailingComment?: string): LiteralExpression {
+            let node = factory.createNumericLiteral(String(value));
+            (<SynthesizedNode>node).trailingComment = trailingComment;
+            return node;
         }
         
         export function createBinaryExpression2(operator: SyntaxKind, left: Expression, right: Expression) {
@@ -150,16 +162,6 @@ namespace ts {
                 factory.createNode(operator),
                 right
             );
-        }
-
-        export function setTextRange<TNode extends Node>(node: TNode, range: TextRange): TNode {
-            if (!node || !range) {
-                return node;
-            }
-            
-            node.pos = range.pos;
-            node.end = range.end;
-            return node;
         }
 
         // export function createVoidZero(location?: TextRange, flags?: NodeFlags): VoidExpression {

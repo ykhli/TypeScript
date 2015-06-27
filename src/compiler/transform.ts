@@ -43,7 +43,7 @@ namespace ts.transform {
                 && isFunctionLike(node);
         }
     }
-
+    
     export function visit<TNode extends Node>(node: TNode, transformer: Transformer): TNode {
         if (!node) {
             return node;
@@ -127,5 +127,50 @@ namespace ts.transform {
         }
 
         return nodes;
+    }
+    
+    /* @internal */
+    export function debugPrintTransformFlags(node: Node) {
+        let writer = createTextWriter(sys.newLine);
+        visit(node);
+        console.log(writer.getText()); 
+        function visit(node: Node) {
+            writer.write(`${(<any>ts).SyntaxKind[node.kind]}: ${formatFlags(node.transformFlags)}`);
+            writer.writeLine();
+            writer.increaseIndent();
+            forEachChild(node, visit);
+            writer.decreaseIndent();
+        }
+        function formatFlags(flags: TransformFlags) {
+            let result = "";
+            if (flags & TransformFlags.TypeScript) appendFlag("TypeScript");
+            if (flags & TransformFlags.ContainsTypeScript) appendFlag("ContainsTypeScript");
+            if (flags & TransformFlags.ES7) appendFlag("ES7");
+            if (flags & TransformFlags.ContainsES7) appendFlag("ContainsES7");
+            if (flags & TransformFlags.ES6) appendFlag("ES6");
+            if (flags & TransformFlags.CaptureThis) appendFlag("CaptureThis");
+            if (flags & TransformFlags.HoistedDeclarationInGenerator) appendFlag("HoistedDeclarationInGenerator");
+            if (flags & TransformFlags.CompletionStatementInGenerator) appendFlag("CompletionStatementInGenerator");
+            if (flags & TransformFlags.ContainsES6) appendFlag("ContainsES6");
+            if (flags & TransformFlags.ContainsYield) appendFlag("ContainsYield");
+            if (flags & TransformFlags.ContainsBindingPattern) appendFlag("ContainsBindingPattern");
+            if (flags & TransformFlags.ContainsRestArgument) appendFlag("ContainsRestArgument");
+            if (flags & TransformFlags.ContainsInitializer) appendFlag("ContainsInitializer");
+            if (flags & TransformFlags.ContainsSpreadElement) appendFlag("ContainsSpreadElement");
+            if (flags & TransformFlags.ContainsLetOrConst) appendFlag("ContainsLetOrConst");
+            if (flags & TransformFlags.ContainsCapturedThis) appendFlag("ContainsCapturedThis");
+            if (flags & TransformFlags.ContainsLexicalThis) appendFlag("ContainsLexicalThis");
+            if (flags & TransformFlags.ContainsHoistedDeclarationInGenerator) appendFlag("ContainsHoistedDeclarationInGenerator");
+            if (flags & TransformFlags.ContainsCompletionStatementInGenerator) appendFlag("ContainsCompletionStatementInGenerator");
+            return result;
+            
+            function appendFlag(name: string) {
+                if (result) {
+                    result += " | ";
+                }
+                
+                result += name;
+            }
+        }
     }
 }

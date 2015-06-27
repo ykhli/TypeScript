@@ -761,7 +761,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
                 increaseIndent();
 
-                if (nodeStartPositionsAreOnSameLine(parent, nodes[0])) {
+                if (nodeStartPositionsAreOnSameLine(parent, nodes[0]) || synthesizedNodeStartsOnSameLine(nodes[0])) {
                     if (spacesBetweenBraces) {
                         write(" ");
                     }
@@ -770,9 +770,10 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                     writeLine();
                 }
 
+                let lastNode: Node;
                 for (let i = 0, n = nodes.length; i < n; i++) {
                     if (i) {
-                        if (nodeEndIsOnSameLineAsNodeStart(nodes[i - 1], nodes[i])) {
+                        if (nodeEndIsOnSameLineAsNodeStart(nodes[i - 1], nodes[i]) || synthesizedNodeStartsOnSameLine(nodes[i])) {
                             write(", ");
                         }
                         else {
@@ -782,6 +783,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                     }
 
                     emit(nodes[i]);
+                    lastNode = nodes[i];
                 }
 
                 if (nodes.hasTrailingComma && allowTrailingComma) {
@@ -790,7 +792,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
                 decreaseIndent();
 
-                if (nodeEndPositionsAreOnSameLine(parent, lastOrUndefined(nodes))) {
+                if (nodeEndPositionsAreOnSameLine(parent, lastNode) || (synthesizedNodeStartsOnSameLine(lastNode))) {
                     if (spacesBetweenBraces) {
                         write(" ");
                     }
@@ -873,6 +875,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 }
                 else {
                     write(text);
+                }
+                
+                if (nodeIsSynthesized(node) && (<SynthesizedNode>node).trailingComment) {
+                    write(" /* ");
+                    write((<SynthesizedNode>node).trailingComment);
+                    write(" */");
                 }
             }
 
@@ -2167,7 +2175,11 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
             function synthesizedNodeStartsOnNewLine(node: Node) {
                 return nodeIsSynthesized(node) && (<SynthesizedNode>node).startsOnNewLine;
             }
-
+            
+            function synthesizedNodeStartsOnSameLine(node: Node) {
+                return nodeIsSynthesized(node) && !(<SynthesizedNode>node).startsOnNewLine;
+            }
+            
             function emitConditionalExpression(node: ConditionalExpression) {
                 emit(node.condition);
                 let indentedBeforeQuestion = indentIfOnDifferentLines(node, node.condition, node.questionToken, " ");
@@ -3447,8 +3459,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 decreaseIndent();
 
                 let preambleEmitted = writer.getTextPos() !== initialTextPos;
-
-                if (!preambleEmitted && nodeEndIsOnSameLineAsNodeStart(body, body)) {
+                
+                if (!preambleEmitted && nodeEndIsOnSameLineAsNodeStart(body, body) && !nodeIsSynthesized(body)) {
                     for (let statement of body.statements) {
                         write(" ");
                         emit(statement);
@@ -5692,10 +5704,6 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 }
             }
             
-            function createTransformation() {
-                
-            }
-
             function emitSourceFileNode(node: SourceFile) {
                 // Start new file on new line
                 writeLine();
@@ -5703,7 +5711,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 
                 // Perform any necessary transformations
                 let statements = node.statements;
-                if (node.transformFlags & TransformFlags.SubtreeNeedsTransformMask) {
+                if (node.transformFlags & TransformFlags.SubtreeNeedsTransform) {
                     let transformationChain = getTransformationChain();
                     let transformResolver = getTransformResolver();
                     statements = transformationChain(transformResolver, statements);

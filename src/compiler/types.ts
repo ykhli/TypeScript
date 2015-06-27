@@ -406,25 +406,24 @@ namespace ts {
         
         ES6 = 1 << 5,
         CaptureThis = 1 << 6,
-        ContainsES6 = 1 << 7,
-        ContainsYield = 1 << 8,
-        ContainsBindingPattern = 1 << 9,
-        ContainsRestArgument = 1 << 10,
-        ContainsInitializer = 1 << 11,
-        ContainsSpreadElement = 1 << 12,
-        ContainsLetOrConst = 1 << 13,
-        ContainsCapturedThis = 1 << 14,
-        ContainsLexicalThis = 1 << 15,
-        ContainsHoistedDeclaration = 1 << 16,
+        HoistedDeclarationInGenerator = 1 << 7,
+        CompletionStatementInGenerator = 1 << 8,
+        ContainsES6 = 1 << 10,
+        ContainsYield = 1 << 11,
+        ContainsBindingPattern = 1 << 12,
+        ContainsRestArgument = 1 << 13,
+        ContainsInitializer = 1 << 14,
+        ContainsSpreadElement = 1 << 15,
+        ContainsLetOrConst = 1 << 16,
+        ContainsCapturedThis = 1 << 17,
+        ContainsLexicalThis = 1 << 18,
+        ContainsHoistedDeclarationInGenerator = 1 << 19,
+        ContainsCompletionStatementInGenerator = 1 << 20, // 'return', 'break', or 'continue' in a generator function
         
-        // Temporary, to be removed
-        ContainsGeneratorFunction = 1 << 17,
-        GeneratorFunction = 1 << 18,
-
         // TypeScript Syntax Features that need down-level transformation
         ThisNodeIsTypeScript = TypeScript | ContainsTypeScript,
         ThisNodeIsTypeScriptPropertyDeclaration = ThisNodeIsTypeScript,
-        ThisNodeIsTypeScriptEnumDeclaration = ThisNodeIsTypeScript | ContainsHoistedDeclaration,
+        ThisNodeIsTypeScriptEnumDeclaration = ThisNodeIsTypeScript,
         ThisNodeIsTypeScriptModuleDeclaration = ThisNodeIsTypeScript,
         ThisNodeIsTypeScriptImportEqualsDeclaration = ThisNodeIsTypeScript,
         ThisNodeIsTypeScriptExportAssignmentDeclaration = ThisNodeIsTypeScript,
@@ -435,15 +434,15 @@ namespace ts {
         
         // ES6 Syntax Features that need down-level transformation
         ThisNodeIsES6 = ES6 | ContainsES6,
-        ThisNodeIsES6Yield = ThisNodeIsES6 |ContainsYield,
+        ThisNodeIsES6Yield = ThisNodeIsES6 | ContainsYield,
         ThisNodeIsES6BindingPattern = ThisNodeIsES6 | ContainsBindingPattern,
         ThisNodeIsES6RestArgument = ThisNodeIsES6 | ContainsRestArgument,
         ThisNodeIsES6Initializer = ThisNodeIsES6 | ContainsInitializer,
         ThisNodeIsES6SpreadElement = ThisNodeIsES6 | ContainsSpreadElement,
-        ThisNodeIsES6LetOrConst = ThisNodeIsES6 | ContainsLetOrConst | ContainsHoistedDeclaration,
+        ThisNodeIsES6LetOrConst = ThisNodeIsES6 | ContainsLetOrConst,
         ThisNodeIsES6ArrowFunction = ThisNodeIsES6,
-        ThisNodeIsES6GeneratorFunction = ThisNodeIsES6 | GeneratorFunction,
-        ThisNodeIsES6ClassDeclaration = ThisNodeIsES6 | ContainsHoistedDeclaration,
+        ThisNodeIsES6GeneratorFunction = ThisNodeIsES6,
+        ThisNodeIsES6ClassDeclaration = ThisNodeIsES6,
         ThisNodeIsES6ClassExpression = ThisNodeIsES6,
         ThisNodeIsES6ClassAccessor = ThisNodeIsES6,
         ThisNodeIsES6Method = ThisNodeIsES6,
@@ -463,9 +462,9 @@ namespace ts {
         // Markers for down-level transformations
         ThisNodeNeedsToCaptureThis = CaptureThis,
         ThisNodeCapturesLexicalThis = ContainsCapturedThis,
-        ThisNodeIsFunctionDeclaration = ContainsHoistedDeclaration,
-        ThisNodeIsVariableDeclarationList = ContainsHoistedDeclaration,
         ThisNodeIsThisKeyword = ContainsLexicalThis,
+        ThisNodeIsHoistedDeclarationInGenerator = HoistedDeclarationInGenerator | ContainsHoistedDeclarationInGenerator,
+        ThisNodeIsCompletionStatementInGenerator = CompletionStatementInGenerator | ContainsCompletionStatementInGenerator,
         
         // Mask used to test for TypeScript nodes that need transformation
         ThisNodeIsTypeScriptMask =
@@ -484,50 +483,64 @@ namespace ts {
         // Mask used to test for ES6 nodes that need transformation
         ThisNodeIsES6Mask =
             ES6 |
-            CaptureThis,
+            CaptureThis |
+            HoistedDeclarationInGenerator |
+            CompletionStatementInGenerator,
             
         ThisNodeNeedsTransformToES5 =
             ThisNodeIsES6Mask,
+            
+        ThisNodeNeedsTransformForES5Generator =
+            ContainsYield |
+            HoistedDeclarationInGenerator |
+            CompletionStatementInGenerator,
 
         // Mask used to clear transform flags that are specific to a single node
-        ThisNodeNeedsTransformMask =
+        ThisNodeFlags =
             ThisNodeIsTypeScriptMask |
             ThisNodeIsES7Mask |
             ThisNodeIsES6Mask,
 
         // Mask used to test for TypeScript nodes in a subtree that need transformation
-        SubtreeContainsTypeScriptMask = 
+        SubtreeContainsTypeScript = 
             ThisNodeIsTypeScriptMask |
             ContainsTypeScript,
             
         SubtreeNeedsTransformToES7 =
-            SubtreeContainsTypeScriptMask,
+            SubtreeContainsTypeScript,
             
         // Mask used to test for ES7 nodes in a subtree that need transformation
-        SubtreeContainsES7Mask =
+        SubtreeContainsES7 =
             ThisNodeIsES7Mask |
             ContainsES7,
             
         SubtreeNeedsTransformToES6 =
-            SubtreeContainsES7Mask,
+            SubtreeContainsES7,
 
         // Mask used to test for ES6 nodes in a subtree that need transformation
-        SubtreeContainsES6Mask = 
+        SubtreeContainsES6 = 
             ThisNodeIsES6Mask |
             ContainsES6,
         
         SubtreeNeedsTransformToES5 =
-            SubtreeContainsES6Mask,
+            SubtreeContainsES6,
+            
+        // Mask used to test for hoisted declarations and completion statements in a 
+        // subtree of a generator function that need transformation
+        SubtreeNeedsTransformForES5Generator =
+            ContainsYield |
+            ContainsHoistedDeclarationInGenerator |
+            ContainsCompletionStatementInGenerator,
         
         // Mask used to test for whether any nodes in a subtree need transformation
-        SubtreeNeedsTransformMask = 
+        SubtreeNeedsTransform = 
             SubtreeNeedsTransformToES7 |
             SubtreeNeedsTransformToES6 |
             SubtreeNeedsTransformToES5,
 
         // Mask used to test for whether any nodes in a subtree beneath a parameter declaration
         // need transformation 
-        ThisParameterNeedsTransformMask =
+        ThisParameterNeedsTransform =
             ContainsBindingPattern |
             ContainsRestArgument |
             ContainsInitializer,
@@ -539,7 +552,8 @@ namespace ts {
             ContainsRestArgument |
             ContainsInitializer |
             ContainsLetOrConst |
-            ContainsHoistedDeclaration,
+            ContainsHoistedDeclarationInGenerator |
+            ContainsCompletionStatementInGenerator,
 
         // Transforms to exclude when exiting a function-like boundary
         FunctionScopeExcludes =
@@ -553,7 +567,7 @@ namespace ts {
             ContainsLexicalThis |
             ContainsCapturedThis |
             ContainsBindingPattern |
-            ContainsHoistedDeclaration, 
+            ContainsHoistedDeclarationInGenerator, 
             
         // Transform to exclude when exiting  call, new, or array literal expression boundary
         CallOrArrayLiteralExcludes =

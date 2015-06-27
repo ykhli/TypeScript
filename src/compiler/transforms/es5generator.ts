@@ -78,6 +78,13 @@ namespace ts.transform {
         return block && block.kind === BlockKind.ScriptBreak;
     }
     
+    function supportsBreak(block: BlockScope): block is BreakBlock {
+        return isBreakBlock(block)
+            || isScriptBreak(block)
+            || isContinueBlock(block)
+            || isScriptContinueBlock(block);
+    }
+    
     // A generated block that tracks the targets for 'break' and 'continue' statements, used for iteration statements
     interface ContinueBlock extends BreakBlock {
         continueLabel: number;
@@ -87,8 +94,13 @@ namespace ts.transform {
         return block && block.kind === BlockKind.Continue;
     }
     
-    function isScriptContinue(block: BlockScope): block is ContinueBlock {
+    function isScriptContinueBlock(block: BlockScope): block is ContinueBlock {
         return block && block.kind === BlockKind.ScriptContinue;
+    }
+    
+    function supportsContinue(block: BlockScope): block is ContinueBlock {
+        return isContinueBlock(block)
+            || isScriptContinueBlock(block);
     }
 
     // A generated block associated with a 'with' statement
@@ -148,24 +160,26 @@ namespace ts.transform {
 
         public statements: Statement[];
         
-        constructor(previous: ES5FunctionTransformer) {
+        constructor(previous: Transformer, statements: Statement[]) {
             super(previous.transformResolver, previous, TransformerScope.Function);
-            this.statements = previous.statements;
+            this.statements = statements;
             this.state = factory.createIdentifier(this.transformResolver.makeUniqueName("state"));
             this.stateSent = factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("sent"));
             this.stateLabel = factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("label"));
             this.stateTrys = factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("trys"));
-            this.nextOpCode = factory.createNumericLiteral2(0);
-            this.throwOpCode = factory.createNumericLiteral2(1);
-            this.returnOpCode = factory.createNumericLiteral2(2);
-            this.breakOpCode = factory.createNumericLiteral2(3);
-            this.yieldOpCode = factory.createNumericLiteral2(4);
-            this.yieldStarOpCode = factory.createNumericLiteral2(5);
-            this.catchOpCode = factory.createNumericLiteral2(6);
-            this.endFinallyOpCode = factory.createNumericLiteral2(7);
+            this.nextOpCode = factory.createNumericLiteral2(0, "next");
+            this.throwOpCode = factory.createNumericLiteral2(1, "throw");
+            this.returnOpCode = factory.createNumericLiteral2(2, "return");
+            this.breakOpCode = factory.createNumericLiteral2(3, "break");
+            this.yieldOpCode = factory.createNumericLiteral2(4, "yield");
+            this.yieldStarOpCode = factory.createNumericLiteral2(5, "yieldstar");
+            this.catchOpCode = factory.createNumericLiteral2(6, "catch");
+            this.endFinallyOpCode = factory.createNumericLiteral2(7, "endfinally");
         }
         
         public transform(body: Block): void {
+            // debugPrintTransformFlags(body);
+            
             let statementOffset = this.statements.length;
 
             // Phase 1 - Translate the body of the generator function into labels and operations
@@ -190,7 +204,16 @@ namespace ts.transform {
             );
         }
         
+        public shouldTransformNode(node: Node) {
+            return needsTransform(node, TransformFlags.ThisNodeNeedsTransformForES5Generator);
+        }
+        
+        public shouldTransformChildrenOfNode(node: Node) {
+            return needsTransform(node, TransformFlags.SubtreeNeedsTransformForES5Generator);
+        }
+        
         public transformNode(node: Node): Node {
+            console.log(`transformNode: ${(<any>ts).SyntaxKind[node.kind]}`);
             switch (node.kind) {
                 case SyntaxKind.BinaryExpression:
                     return this.transformBinaryExpression(<BinaryExpression>node);
@@ -440,7 +463,8 @@ namespace ts.transform {
         }
 
         private transformFunctionDeclaration(node: FunctionDeclaration): FunctionDeclaration {
-            // GeneratorFunctionBuilder.addFunction(state.builder, node);
+            console.log("transformFunctionDeclaration");
+            this.statements.push(visit(node, this.previous));
             return;
         }
 
@@ -1382,7 +1406,7 @@ namespace ts.transform {
             if (this.blocks) {
                 for (let i = this.blockStack.length - 1; i >= 0; i--) {
                     let block = this.blockStack[i];
-                    if (this.supportsBreak(block)) {
+                    if (supportsBreak(block)) {
                         if ((!labelText && !block.requireLabel) || block.labelText && block.labelText.indexOf(labelText) !== -1) {
                             return block.breakLabel;
                         }
@@ -1397,7 +1421,7 @@ namespace ts.transform {
             if (this.blocks) {
                 for (let i = this.blockStack.length - 1; i >= 0; i--) {
                     let block = this.blockStack[i];
-                    if (this.supportsContinue(block)) {
+                    if (supportsContinue(block)) {
                         if (!labelText || block.labelText && block.labelText.indexOf(labelText) !== -1) {
                             return block.continueLabel;
                         }
@@ -1406,26 +1430,6 @@ namespace ts.transform {
             }
             
             return undefined;
-        }
-
-        private supportsBreak(block: BlockScope): block is BreakBlock {
-            switch (block.kind) {
-                case BlockKind.ScriptBreak:
-                case BlockKind.ScriptContinue:
-                case BlockKind.Break:
-                case BlockKind.Continue:
-                    return true;
-            }
-            return false;
-        }
-
-        private supportsContinue(block: BlockScope): block is ContinueBlock {
-            switch (block.kind) {
-                case BlockKind.ScriptContinue:
-                case BlockKind.Continue:
-                    return true;
-            }
-            return false;
         }
         
         private emit(code: OpCode): void;

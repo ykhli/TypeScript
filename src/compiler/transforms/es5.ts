@@ -6,21 +6,17 @@ namespace ts.transform {
     
     export class ES5Transformer extends Transformer {
         public shouldTransformNode(node: Node) {
-            // return !!(node.transformFlags & TransformFlags.ThisNodeNeedsTransformToES5);
-            return !!(node.transformFlags & TransformFlags.ContainsGeneratorFunction);
+            return needsTransform(node, TransformFlags.ThisNodeNeedsTransformToES5);            
         }
         
         public shouldTransformChildrenOfNode(node: Node) {
-            // return !!(node.transformFlags & TransformFlags.SubtreeNeedsTransformToES5);
-            return !!(node.transformFlags & TransformFlags.ContainsGeneratorFunction);
+            return needsTransform(node, TransformFlags.SubtreeNeedsTransformToES5);
         }
 
         public transformNode(node: Node): Node {
             switch (node.kind) {
-                case SyntaxKind.ArrowFunction:
                 case SyntaxKind.FunctionExpression:
                 case SyntaxKind.FunctionDeclaration:
-                case SyntaxKind.MethodDeclaration:
                     return this.transformFunctionLikeDeclaration(<FunctionLikeDeclaration>node);
             }
             
@@ -44,7 +40,7 @@ namespace ts.transform {
         public transform(node: FunctionLikeDeclaration): FunctionLikeDeclaration {
             // If any parameters containing binding patterns, initializers, or a rest argument
             // we need to transform the parameter list
-            if (node.transformFlags & TransformFlags.ThisParameterNeedsTransformMask) {
+            if (node.transformFlags & TransformFlags.ThisParameterNeedsTransform) {
                 this.parameters = [];
                 visitNodes(node.parameters, this);
             }
@@ -95,7 +91,7 @@ namespace ts.transform {
         }
 
         private transformGeneratorBody(node: Block) {
-            let transformer = new ES5GeneratorBodyTransformer(this);
+            let transformer = new ES5GeneratorBodyTransformer(this.previous, this.statements);
             return transformer.transform(node);
         }
         

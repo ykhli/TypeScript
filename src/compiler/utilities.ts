@@ -11,7 +11,8 @@ namespace ts {
     export interface SynthesizedNode extends Node {
         leadingCommentRanges?: CommentRange[];
         trailingCommentRanges?: CommentRange[];
-        startsOnNewLine: boolean;
+        trailingComment?: string;
+        startsOnNewLine?: boolean;
     }
 
     export function getDeclarationOfKind(symbol: Symbol, kind: SyntaxKind): Declaration {
@@ -144,15 +145,7 @@ namespace ts {
             return true;
         }
 
-        return node.pos === node.end && node.pos > 0 && node.kind !== SyntaxKind.EndOfFileToken;
-    }
-
-    export function nodeIsGenerated(node: Node) {
-        if (!node) {
-            return true;
-        }
-
-        return node.pos === node.end && node.pos <= 0 && node.kind !== SyntaxKind.EndOfFileToken;
+        return node.pos === node.end && node.pos >= 0 && node.kind !== SyntaxKind.EndOfFileToken;
     }
 
     export function nodeIsPresent(node: Node) {
@@ -1406,7 +1399,7 @@ namespace ts {
     }
 
     export function nodeIsSynthesized(node: Node): boolean {
-        return node.pos === -1;
+        return node && node.pos === -1;
     }
 
     export function createSynthesizedNode(kind: SyntaxKind, startsOnNewLine?: boolean): Node {
@@ -1970,6 +1963,10 @@ namespace ts {
         }
         
         return false;
+    }
+    
+    export function needsTransform(node: Node, mask: TransformFlags) {
+        return !!(node.transformFlags & mask);
     }
     
     export function getTransformSource(node: Node) {
