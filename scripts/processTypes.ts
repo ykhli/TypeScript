@@ -461,6 +461,7 @@ function generateFactory() {
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();
+    writeIsNodeFunctions();
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();
@@ -518,6 +519,12 @@ function writeCreateAndUpdateFunctions() {
     for (let syntaxNode of syntax) {
         writeCreateFunction(syntaxNode);
         writeUpdateFunction(syntaxNode);
+    }
+}
+
+function writeIsNodeFunctions() {
+    for (let syntaxNode of syntax) {
+        writeIsNodeFunction(syntaxNode);
     }
 }
 
@@ -606,6 +613,17 @@ function writeCreateFunction(syntaxNode: SyntaxNode) {
         writer.writeLine();
     }
 
+    writer.decreaseIndent();
+    writer.write(`}`);
+    writer.writeLine();
+}
+
+function writeIsNodeFunction(syntaxNode: SyntaxNode) {
+    writer.write(`export function is${syntaxNode.kind.name}(node: Node): node is ${syntaxNode.symbol.name} {`);
+    writer.writeLine();
+    writer.increaseIndent();
+    writer.write(`return node && node.kind === SyntaxKind.${syntaxNode.kind.name};`);
+    writer.writeLine();
     writer.decreaseIndent();
     writer.write(`}`);
     writer.writeLine();

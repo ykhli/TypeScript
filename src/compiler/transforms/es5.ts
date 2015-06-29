@@ -34,7 +34,7 @@ namespace ts.transform {
         public statements: Statement[] = [];
         
         constructor(previous: ES5Transformer) {
-            super(previous.transformResolver, previous, TransformerScope.Function);
+            super(previous.transformResolver, previous);
         }
         
         public transform(node: FunctionLikeDeclaration): FunctionLikeDeclaration {
@@ -428,44 +428,182 @@ namespace ts.transform {
     //         state.mergedAssignments = mergedAssignments;
     //     }
     // }
+    
+    export class SpreadElementTransformer extends Transformer {
+        public locals: Identifier[];
+        
+        constructor(transformResolver: TransformResolver) {
+            super(transformResolver);
+        }
+        
+        public transform(node: ArrayLiteralExpression | CallExpression | NewExpression): LeftHandSideExpression {
+            if (this.shouldTransformNode(node)) {
+                return <LeftHandSideExpression>this.transformNode(node);
+            }
 
-    // export module SpreadElementRewriter {
-    //     export function rewrite(elements: NodeArray<Expression>): LeftHandSideExpression {
-    //         var segments: Expression[];
-    //         var length = elements.length;
-    //         var start = 0;
+            return node;
+        }
+        
+        public shouldTransformNode(node: Node) {
+            return needsTransform(node, TransformFlags.ContainsSpreadElement)
+                && (isArrayLiteralExpression(node) 
+                    || isCallExpression(node) 
+                    || isNewExpression(node));
+        }
+        
+        public transformNode(node: Node) {
+            if (isArrayLiteralExpression(node)) {
+                return this.transformArrayLiteralExpression(<ArrayLiteralExpression>node);
+            }
+            else if (isCallExpression(node)) {
+                return this.transformCallExpression(<CallExpression>node);
+            }
+            else if (isNewExpression(node)) {
+                return this.transformNewExpression(<NewExpression>node);
+            }
+            else {
+                return super.transformNode(node);
+            }
+        }
+        
+        private transformArrayLiteralExpression(node: ArrayLiteralExpression) {
+            return this.transformElements(node.elements);
+        }
+        
+        private getCallTarget(target: Expression) {
+            if (target.kind === SyntaxKind.Identifier 
+                || target.kind === SyntaxKind.ThisKeyword 
+                || target.kind === SyntaxKind.SuperKeyword) {
+                return undefined;
+            }
 
-    //         for (var i = 0; i < length; i++) {
-    //             var element = elements[i];
-    //             if (element.kind === SyntaxKind.SpreadElementExpression) {
-    //                 if (!segments) {
-    //                     segments = [];
-    //                 }
-    //                 if (i > start) {
-    //                     segments.push(Factory.createArrayLiteralExpression(elements.slice(start, i)));
-    //                 }
-    //                 segments.push((<SpreadElementExpression>element).expression);
-    //                 start = i + 1;
-    //             }
-    //         }
+            if (!this.locals) {
+                this.locals = [];
+            }
+            
+            let temp = this.transformResolver.makeTempVariableName();
+            this.locals.push(factory.createIdentifier(temp));
+            
+            let left = factory.makeLeftHandSideExpression(
+                factory.createBinaryExpression2(
+                    SyntaxKind.EqualsToken,
+                    factory.createIdentifier(temp),
+                    target
+                )
+            );
+            
+            target = factory.createIdentifier(temp);
+            
+            return { left, target };
+        }
+        
+        private transformNewExpression(node: NewExpression) {
+            /*
+            // assumes:
+            var __spreadnew = this.__spreadnew || function (ctor, args) {
+                function __() { return ctor.apply(this, args); }
+                __.prototype = ctor.prototype;
+                return new __();
+            }
+            */
+            
+            return factory.createCallExpression2(
+                factory.createIdentifier("__spreadnew"),
+                [
+                    node.expression,
+                    this.transformElements(node.arguments)
+                ]
+            );
+        }
+        
+        private transformCallExpression(node: CallExpression) {
+            let expr: Expression = node.expression;
+            while (isParenthesizedExpression(expr) || isTypeAssertionExpression(expr)) {
+                expr = (<ParenthesizedExpression | TypeAssertion>expr).expression;
+            }
+            
+            let left: LeftHandSideExpression;
+            let target: Expression;
+            if (isPropertyAccessExpression(expr)) {
+                target = left = expr.expression;
 
-    //         if (!segments) {
-    //             return undefined;
-    //         }
+                let callTarget = this.getCallTarget(expr.expression);
+                if (callTarget) {
+                    left = callTarget.left;
+                    target = callTarget.target;
+                }
+                
+                left = factory.createPropertyAccessExpression(
+                    left, 
+                    expr.name
+                );
+            }
+            else if (isElementAccessExpression(expr)) {
+                target = left = expr.expression;
 
-    //         if (start < length) {
-    //             segments.push(Factory.createArrayLiteralExpression(elements.slice(start, length)));
-    //         }
+                let callTarget = this.getCallTarget(expr.expression);
+                if (callTarget) {
+                    left = callTarget.left;
+                    target = callTarget.target;
+                }
+                
+                left = factory.createElementAccessExpression(
+                    left,
+                    expr.argumentExpression
+                );
+            }
+            else if (expr.kind === SyntaxKind.SuperKeyword) {
+                target = factory.createNode<Expression>(SyntaxKind.ThisKeyword);
+                left = factory.createIdentifier("_super");
+            }
+            else {
+                target = factory.createVoidZeroExpression();
+                left = node.expression;
+            }
+            
+            return factory.createCallExpression2(
+                factory.createPropertyAccessExpression2(
+                    left, 
+                    factory.createIdentifier("_apply")
+                ),
+                [
+                    target, this.transformElements(node.arguments)
+                ]
+            );
+        }
+        
+        private transformElements(elements: NodeArray<Expression>): LeftHandSideExpression {
+            let segments: Expression[] = [];
+            let length = elements.length;
+            let start = 0;
+            for (let i = 0; i < length; i++) {
+                let element = elements[i];
+                if (element.kind === SyntaxKind.SpreadElementExpression) {
+                    if (i > start) {
+                        segments.push(factory.createArrayLiteralExpression(elements.slice(start, i)));
+                    }
 
-    //         // Rewrite using the pattern <segment0>.concat(<segment1>, <segment2>, ...)
-    //         if (segments.length === 1) {
-    //             return Factory.makeLeftHandSideExpression(segments[0]);
-    //         }
+                    segments.push((<SpreadElementExpression>element).expression);
+                    start = i + 1;
+                }
+            }
 
-    //         var head = Factory.makeLeftHandSideExpression(segments.shift());
-    //         var concatExpression = Factory.createPropertyAccessExpression(head, Factory.createIdentifier("concat"));
-    //         var callExpression = Factory.createCallExpression(concatExpression, segments);
-    //         return callExpression;
-    //     }
-    // }
+            if (start < length) {
+                segments.push(factory.createArrayLiteralExpression(elements.slice(start, length)));
+            }
+
+            if (segments.length === 1) {
+                return factory.makeLeftHandSideExpression(segments[0]);
+            }
+
+            // Rewrite using the pattern <segment0>.concat(<segment1>, <segment2>, ...)
+            return factory.createCallExpression2(
+                factory.createPropertyAccessExpression(
+                    factory.makeLeftHandSideExpression(segments.shift()), 
+                    factory.createIdentifier("concat")
+                ), 
+                segments
+            );
+        }
+    }
 }

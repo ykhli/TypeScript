@@ -444,12 +444,11 @@ namespace ts {
         ThisNodeIsES6GeneratorFunction = ThisNodeIsES6,
         ThisNodeIsES6ClassDeclaration = ThisNodeIsES6,
         ThisNodeIsES6ClassExpression = ThisNodeIsES6,
-        ThisNodeIsES6ClassAccessor = ThisNodeIsES6,
         ThisNodeIsES6Method = ThisNodeIsES6,
         ThisNodeIsES6ClassConstructor = ThisNodeIsES6,
         ThisNodeIsES6DestructuringAssignment = ThisNodeIsES6,
         ThisNodeIsES6ComputedPropertyName = ThisNodeIsES6,
-        ThisNodeIsES6ShorthandPropertyName = ThisNodeIsES6,
+        ThisNodeIsES6ShorthandPropertyAssignment = ThisNodeIsES6,
         ThisNodeIsES6ForOfStatement = ThisNodeIsES6,
         ThisNodeIsES6ImportDeclaration = ThisNodeIsES6,
         ThisNodeIsES6ExportDeclaration = ThisNodeIsES6,
@@ -576,11 +575,6 @@ namespace ts {
 
     export type Transformation = (resolver: TransformResolver, statements: NodeArray<Statement>) => NodeArray<Statement>;
 
-    export const enum TransformerScope {
-        None,
-        Function
-    }
-
     export interface TransformResolver {
         getGeneratedNameForNode(node: Node): string;
         makeTempVariableName(): string;
@@ -689,8 +683,10 @@ namespace ts {
 
     // @kind(SyntaxKind.Parameter)
     export interface ParameterDeclaration extends Declaration {
+        // @factoryparam
         dotDotDotToken?: Node;              // Present on rest parameter
         name: Identifier | BindingPattern;  // Declared parameter name
+        // @factoryparam
         questionToken?: Node;               // Present on optional parameter
         type?: TypeNode;                    // Optional type annotation
         initializer?: Expression;           // Optional initializer
@@ -699,6 +695,7 @@ namespace ts {
     // @kind(SyntaxKind.BindingElement)
     export interface BindingElement extends Declaration {
         propertyName?: Identifier;          // Binding property name (in object binding pattern)
+        // @factoryparam
         dotDotDotToken?: Node;              // Present on rest binding element
         name: Identifier | BindingPattern;  // Declared binding element name
         initializer?: Expression;           // Optional initializer
@@ -708,6 +705,7 @@ namespace ts {
     // @kind(SyntaxKind.PropertySignature)
     export interface PropertyDeclaration extends Declaration, ClassElement {
         name: DeclarationName;              // Declared property name
+        // @factoryparam
         questionToken?: Node;               // Present on optional property
         type?: TypeNode;                    // Optional type annotation
         initializer?: Expression;           // Optional initializer
@@ -721,6 +719,7 @@ namespace ts {
     export interface PropertyAssignment extends ObjectLiteralElement {
         _propertyAssignmentBrand: any;
         name: DeclarationName;
+        // @factoryparam
         questionToken?: Node;
         initializer: Expression;
     }
@@ -728,6 +727,7 @@ namespace ts {
     // @kind(SyntaxKind.ShorthandPropertyAssignment)
     export interface ShorthandPropertyAssignment extends ObjectLiteralElement {
         name: Identifier;
+        // @factoryparam
         questionToken?: Node;
     }
 
@@ -740,8 +740,10 @@ namespace ts {
     // SyntaxKind.EnumMember
     export interface VariableLikeDeclaration extends Declaration {
         propertyName?: Identifier;
+        // @factoryparam
         dotDotDotToken?: Node;
         name: DeclarationName;
+        // @factoryparam
         questionToken?: Node;
         type?: TypeNode;
         initializer?: Expression;
@@ -764,7 +766,9 @@ namespace ts {
     export interface FunctionLikeDeclaration extends SignatureDeclaration {
         _functionLikeDeclarationBrand: any;
 
+        // @factoryparam
         asteriskToken?: Node;
+        // @factoryparam
         questionToken?: Node;
         body?: Block | Expression;
     }
@@ -938,6 +942,7 @@ namespace ts {
 
     // @kind(SyntaxKind.YieldExpression)
     export interface YieldExpression extends Expression {
+        // @factoryparam
         asteriskToken?: Node;
         expression?: Expression;
     }
@@ -945,6 +950,7 @@ namespace ts {
     // @kind(SyntaxKind.BinaryExpression)
     export interface BinaryExpression extends Expression {
         left: Expression;
+        // @factoryparam
         operatorToken: Node;
         right: Expression;
     }
@@ -952,8 +958,10 @@ namespace ts {
     // @kind(SyntaxKind.ConditionalExpression)
     export interface ConditionalExpression extends Expression {
         condition: Expression;
+        // @factoryparam
         questionToken: Node;
         whenTrue: Expression;
+        // @factoryparam
         colonToken: Node;
         whenFalse: Expression;
     }
@@ -966,6 +974,7 @@ namespace ts {
 
     // @kind(SyntaxKind.ArrowFunction)
     export interface ArrowFunction extends Expression, FunctionLikeDeclaration {
+        // @factoryparam
         equalsGreaterThanToken: Node;
     }
 
@@ -1023,6 +1032,7 @@ namespace ts {
     // @kind(SyntaxKind.PropertyAccessExpression)
     export interface PropertyAccessExpression extends MemberExpression {
         expression: LeftHandSideExpression;
+        // @factoryparam
         dotToken: Node;
         name: Identifier;
     }
@@ -1433,6 +1443,7 @@ namespace ts {
 
     // @kind(SyntaxKind.JSDocTag)
     export interface JSDocTag extends Node {
+        // @factoryparam
         atToken: Node;
         tagName: Identifier;
     }

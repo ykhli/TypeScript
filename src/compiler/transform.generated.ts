@@ -26,9 +26,7 @@ namespace ts.transform {
                     <ParameterDeclaration>node, 
                     visitNodes((<ParameterDeclaration>node).decorators, transformer), 
                     <ModifiersArray>visitNodes((<ParameterDeclaration>node).modifiers, transformer), 
-                    visit((<ParameterDeclaration>node).dotDotDotToken, transformer), 
                     visit((<ParameterDeclaration>node).name, transformer), 
-                    visit((<ParameterDeclaration>node).questionToken, transformer), 
                     visit((<ParameterDeclaration>node).type, transformer), 
                     visit((<ParameterDeclaration>node).initializer, transformer));
             case SyntaxKind.Decorator:
@@ -39,7 +37,6 @@ namespace ts.transform {
                 return factory.updatePropertySignature(
                     <PropertyDeclaration>node, 
                     visit((<PropertyDeclaration>node).name, transformer), 
-                    visit((<PropertyDeclaration>node).questionToken, transformer), 
                     visit((<PropertyDeclaration>node).type, transformer));
             case SyntaxKind.PropertyDeclaration:
                 return factory.updatePropertyDeclaration(
@@ -47,14 +44,12 @@ namespace ts.transform {
                     visitNodes((<PropertyDeclaration>node).decorators, transformer), 
                     <ModifiersArray>visitNodes((<PropertyDeclaration>node).modifiers, transformer), 
                     visit((<PropertyDeclaration>node).name, transformer), 
-                    visit((<PropertyDeclaration>node).questionToken, transformer), 
                     visit((<PropertyDeclaration>node).type, transformer), 
                     visit((<PropertyDeclaration>node).initializer, transformer));
             case SyntaxKind.MethodSignature:
                 return factory.updateMethodSignature(
                     <MethodDeclaration>node, 
                     visit((<MethodDeclaration>node).name, transformer), 
-                    visit((<MethodDeclaration>node).questionToken, transformer), 
                     visitNodes((<MethodDeclaration>node).typeParameters, transformer), 
                     visitNodes((<MethodDeclaration>node).parameters, transformer), 
                     visit((<MethodDeclaration>node).type, transformer));
@@ -63,7 +58,6 @@ namespace ts.transform {
                     <MethodDeclaration>node, 
                     visitNodes((<MethodDeclaration>node).decorators, transformer), 
                     <ModifiersArray>visitNodes((<MethodDeclaration>node).modifiers, transformer), 
-                    visit((<MethodDeclaration>node).asteriskToken, transformer), 
                     visit((<MethodDeclaration>node).name, transformer), 
                     visitNodes((<MethodDeclaration>node).typeParameters, transformer), 
                     visitNodes((<MethodDeclaration>node).parameters, transformer), 
@@ -172,7 +166,6 @@ namespace ts.transform {
                 return factory.updateBindingElement(
                     <BindingElement>node, 
                     visit((<BindingElement>node).propertyName, transformer), 
-                    visit((<BindingElement>node).dotDotDotToken, transformer), 
                     visit((<BindingElement>node).name, transformer), 
                     visit((<BindingElement>node).initializer, transformer));
             case SyntaxKind.ArrayLiteralExpression:
@@ -187,7 +180,6 @@ namespace ts.transform {
                 return factory.updatePropertyAccessExpression(
                     <PropertyAccessExpression>node, 
                     visit((<PropertyAccessExpression>node).expression, transformer), 
-                    visit((<PropertyAccessExpression>node).dotToken, transformer), 
                     visit((<PropertyAccessExpression>node).name, transformer));
             case SyntaxKind.ElementAccessExpression:
                 return factory.updateElementAccessExpression(
@@ -225,7 +217,6 @@ namespace ts.transform {
                     <FunctionExpression>node, 
                     visitNodes((<FunctionExpression>node).decorators, transformer), 
                     <ModifiersArray>visitNodes((<FunctionExpression>node).modifiers, transformer), 
-                    visit((<FunctionExpression>node).asteriskToken, transformer), 
                     visit((<FunctionExpression>node).name, transformer), 
                     visitNodes((<FunctionExpression>node).typeParameters, transformer), 
                     visitNodes((<FunctionExpression>node).parameters, transformer), 
@@ -239,7 +230,6 @@ namespace ts.transform {
                     visitNodes((<ArrowFunction>node).typeParameters, transformer), 
                     visitNodes((<ArrowFunction>node).parameters, transformer), 
                     visit((<ArrowFunction>node).type, transformer), 
-                    visit((<ArrowFunction>node).equalsGreaterThanToken, transformer), 
                     visit((<ArrowFunction>node).body, transformer));
             case SyntaxKind.DeleteExpression:
                 return factory.updateDeleteExpression(
@@ -265,15 +255,12 @@ namespace ts.transform {
                 return factory.updateBinaryExpression(
                     <BinaryExpression>node, 
                     visit((<BinaryExpression>node).left, transformer), 
-                    visit((<BinaryExpression>node).operatorToken, transformer), 
                     visit((<BinaryExpression>node).right, transformer));
             case SyntaxKind.ConditionalExpression:
                 return factory.updateConditionalExpression(
                     <ConditionalExpression>node, 
                     visit((<ConditionalExpression>node).condition, transformer), 
-                    visit((<ConditionalExpression>node).questionToken, transformer), 
                     visit((<ConditionalExpression>node).whenTrue, transformer), 
-                    visit((<ConditionalExpression>node).colonToken, transformer), 
                     visit((<ConditionalExpression>node).whenFalse, transformer));
             case SyntaxKind.TemplateExpression:
                 return factory.updateTemplateExpression(
@@ -283,7 +270,6 @@ namespace ts.transform {
             case SyntaxKind.YieldExpression:
                 return factory.updateYieldExpression(
                     <YieldExpression>node, 
-                    visit((<YieldExpression>node).asteriskToken, transformer), 
                     visit((<YieldExpression>node).expression, transformer));
             case SyntaxKind.SpreadElementExpression:
                 return factory.updateSpreadElementExpression(
@@ -415,7 +401,6 @@ namespace ts.transform {
                     <FunctionDeclaration>node, 
                     visitNodes((<FunctionDeclaration>node).decorators, transformer), 
                     <ModifiersArray>visitNodes((<FunctionDeclaration>node).modifiers, transformer), 
-                    visit((<FunctionDeclaration>node).asteriskToken, transformer), 
                     visit((<FunctionDeclaration>node).name, transformer), 
                     visitNodes((<FunctionDeclaration>node).typeParameters, transformer), 
                     visitNodes((<FunctionDeclaration>node).parameters, transformer), 
@@ -551,13 +536,11 @@ namespace ts.transform {
                 return factory.updatePropertyAssignment(
                     <PropertyAssignment>node, 
                     visit((<PropertyAssignment>node).name, transformer), 
-                    visit((<PropertyAssignment>node).questionToken, transformer), 
                     visit((<PropertyAssignment>node).initializer, transformer));
             case SyntaxKind.ShorthandPropertyAssignment:
                 return factory.updateShorthandPropertyAssignment(
                     <ShorthandPropertyAssignment>node, 
-                    visit((<ShorthandPropertyAssignment>node).name, transformer), 
-                    visit((<ShorthandPropertyAssignment>node).questionToken, transformer));
+                    visit((<ShorthandPropertyAssignment>node).name, transformer));
             case SyntaxKind.EnumMember:
                 return factory.updateEnumMember(
                     <EnumMember>node, 
@@ -629,7 +612,6 @@ namespace ts.transform {
             case SyntaxKind.JSDocTag:
                 return factory.updateJSDocTag(
                     <JSDocTag>node, 
-                    visit((<JSDocTag>node).atToken, transformer), 
                     visit((<JSDocTag>node).tagName, transformer));
             case SyntaxKind.JSDocParameterTag:
                 return factory.updateJSDocParameterTag(
@@ -637,25 +619,21 @@ namespace ts.transform {
                     visit((<JSDocParameterTag>node).preParameterName, transformer), 
                     visit((<JSDocParameterTag>node).typeExpression, transformer), 
                     visit((<JSDocParameterTag>node).postParameterName, transformer), 
-                    visit((<JSDocParameterTag>node).atToken, transformer), 
                     visit((<JSDocParameterTag>node).tagName, transformer));
             case SyntaxKind.JSDocReturnTag:
                 return factory.updateJSDocReturnTag(
                     <JSDocReturnTag>node, 
                     visit((<JSDocReturnTag>node).typeExpression, transformer), 
-                    visit((<JSDocReturnTag>node).atToken, transformer), 
                     visit((<JSDocReturnTag>node).tagName, transformer));
             case SyntaxKind.JSDocTypeTag:
                 return factory.updateJSDocTypeTag(
                     <JSDocTypeTag>node, 
                     visit((<JSDocTypeTag>node).typeExpression, transformer), 
-                    visit((<JSDocTypeTag>node).atToken, transformer), 
                     visit((<JSDocTypeTag>node).tagName, transformer));
             case SyntaxKind.JSDocTemplateTag:
                 return factory.updateJSDocTemplateTag(
                     <JSDocTemplateTag>node, 
                     visitNodes((<JSDocTemplateTag>node).typeParameters, transformer), 
-                    visit((<JSDocTemplateTag>node).atToken, transformer), 
                     visit((<JSDocTemplateTag>node).tagName, transformer));
             default:
                 return node;

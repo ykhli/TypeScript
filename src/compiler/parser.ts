@@ -1,4 +1,4 @@
-/// <reference path="factory.ts"/>
+/// <reference path="transform.ts"/>
 /// <reference path="utilities.ts"/>
 
 namespace ts {
@@ -387,7 +387,7 @@ namespace ts {
     export function parseJSDocTypeExpressionForTests(content: string, start?: number, length?: number) {
         return Parser.JSDocParser.parseJSDocTypeExpressionForTests(content, start, length);
     }
-
+    
     // Implement the parser as a singleton module.  We do this for perf reasons because creating
     // parser instances can actually be expensive enough to impact us on projects with many source
     // files.
@@ -486,9 +486,6 @@ namespace ts {
         // attached to the EOF token.
         let parseErrorBeforeNextFinishedNode: boolean = false;
         
-        let transformFlags: TransformFlags;
-        let transformStack: TransformFlags[];
-
         export function parseSourceFile(fileName: string, _sourceText: string, languageVersion: ScriptTarget, _syntaxCursor: IncrementalParser.SyntaxCursor, setParentNodes?: boolean): SourceFile {
             initializeState(fileName, _sourceText, languageVersion, _syntaxCursor);
 
@@ -505,8 +502,6 @@ namespace ts {
 
             parseDiagnostics = [];
             parsingContext = 0;
-            transformStack = [];
-            transformFlags = 0;
             identifiers = {};
             identifierCount = 0;
             nodeCount = 0;
@@ -562,16 +557,7 @@ namespace ts {
                 addJSDocComments();
             }
 
-            // Mark transforms
-            let containsCapturedThis = needsTransform(TransformFlags.ContainsCapturedThis);
-            excludeTransform(TransformFlags.ModuleScopeExcludes);
-            if (containsCapturedThis) {
-                markTransform(TransformFlags.ThisNodeNeedsToCaptureThis);
-            }
-            
-            finishNode(sourceFile);
-
-            return sourceFile;
+            return finishNode(sourceFile);
         }
 
         function addJSDocComments() {
@@ -641,34 +627,6 @@ namespace ts {
             sourceFile.flags = fileExtensionIs(sourceFile.fileName, ".d.ts") ? NodeFlags.DeclarationFile : 0;
 
             return sourceFile;
-        }
-
-        function enterTransformContext(): void {
-            transformStack.push(transformFlags);
-            transformFlags = 0;
-        }
-        
-        function markTransform(flags: TransformFlags) {
-            transformFlags |= flags;
-        }
-        
-        function excludeTransform(mask: TransformFlags) {
-            transformFlags &= ~mask;
-        }
-        
-        function needsTransform(mask: TransformFlags) {
-            return !!(transformFlags & mask);
-        }
-
-        function exitTransformContext(merge: boolean) {
-            let flags = transformStack.pop();
-            if (merge) {
-                markTransform(flags);
-            }
-        }
-        
-        function resetThisNodeNeedsAnyTransform() {
-            transformFlags &= ~TransformFlags.ThisNodeFlags;
         }
         
         function setContextFlag(val: Boolean, flag: ParserContextFlags) {
@@ -843,7 +801,6 @@ namespace ts {
             let saveToken = token;
             let saveParseDiagnosticsLength = parseDiagnostics.length;
             let saveParseErrorBeforeNextFinishedNode = parseErrorBeforeNextFinishedNode;
-            enterTransformContext();
 
             // Note: it is not actually necessary to save/restore the context flags here.  That's
             // because the saving/restorating of these flags happens naturally through the recursive
@@ -866,10 +823,6 @@ namespace ts {
                 token = saveToken;
                 parseDiagnostics.length = saveParseDiagnosticsLength;
                 parseErrorBeforeNextFinishedNode = saveParseErrorBeforeNextFinishedNode;
-                exitTransformContext(/*merge*/ false);
-            }
-            else {
-                exitTransformContext(/*merge*/ true);
             }
 
             return result;
@@ -972,8 +925,6 @@ namespace ts {
         }
         
         function beginNode<T extends Node>(node: T, pos?: number): T {
-            enterTransformContext();
-            
             nodeCount++;
             if (!(pos >= 0)) {
                 pos = scanner.getStartPos();
@@ -991,10 +942,6 @@ namespace ts {
                 node.parserContextFlags = contextFlags;
             }
             
-            if (transformFlags) {
-                node.transformFlags = transformFlags;
-            }
-
             // Keep track on the node if we encountered an error while parsing it.  If we did, then
             // we cannot reuse the node incrementally.  Once we've marked this node, clear out the
             // flag so that we don't mark any subsequent nodes.
@@ -1003,8 +950,7 @@ namespace ts {
                 node.parserContextFlags |= ParserContextFlags.ThisNodeHasError;
             }
 
-            resetThisNodeNeedsAnyTransform();
-            exitTransformContext(/*merge*/ true);
+            transform.aggregateTransformFlags(node);
             return node;
         }
 
@@ -1105,9 +1051,6 @@ namespace ts {
             }
 
             parseExpected(SyntaxKind.CloseBracketToken);
-            
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6ComputedPropertyName);
             
             return finishNode(node);
         }
@@ -1842,9 +1785,6 @@ namespace ts {
             templateSpans.end = getNodeEnd();
             template.templateSpans = templateSpans;
             
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6TemplateExpression);
-
             return finishNode(template);
         }
 
@@ -1896,20 +1836,6 @@ namespace ts {
                 node.flags |= NodeFlags.OctalLiteral;
             }
             
-            // Mark transforms
-            if (node.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-                markTransform(TransformFlags.ThisNodeIsES6NoSubstitutionTemplateLiteral);
-            }
-            if (node.kind === SyntaxKind.NumericLiteral) {
-                let firstChar = sourceText.charCodeAt(tokenPos);
-                if (firstChar === CharacterCodes.b 
-                    || firstChar === CharacterCodes.B 
-                    || firstChar === CharacterCodes.o
-                    || firstChar === CharacterCodes.O) {
-                    markTransform(TransformFlags.ThisNodeIsES6BinaryOrOctalLiteralExpression);
-                }
-            }
-
             return node;
         }
 
@@ -2030,13 +1956,6 @@ namespace ts {
             // contexts. In addition, parameter initializers are semantically disallowed in
             // overload signatures. So parameter initializers are transitively disallowed in
             // ambient contexts.
-            
-            if (node.initializer) {
-                markTransform(TransformFlags.ThisNodeIsES6Initializer);
-            }
-            if (node.dotDotDotToken) {
-                markTransform(TransformFlags.ThisNodeIsES6RestArgument);
-            }
             
             return finishNode(node);
         }
@@ -2740,16 +2659,12 @@ namespace ts {
                 node.expression = parseAssignmentExpressionOrHigher();
             }
 
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6Yield);
-            
             return finishNode(node);
         }
 
         function parseSimpleArrowFunctionExpression(identifier: Identifier): Expression {
             Debug.assert(token === SyntaxKind.EqualsGreaterThanToken, "parseSimpleArrowFunctionExpression should only have been called if we had a =>");
 
-            let savedTransformContext = enterTransformContext();
             let node = beginNode(factory.createArrowFunction(), identifier.pos);
             let parameter = beginNode(factory.createParameter(), identifier.pos);
             parameter.name = identifier;
@@ -2762,14 +2677,6 @@ namespace ts {
             node.equalsGreaterThanToken = parseExpectedToken(SyntaxKind.EqualsGreaterThanToken, false, Diagnostics._0_expected, "=>");
             node.body = parseArrowFunctionExpressionBody();
 
-            // Mark transforms
-            let containsLexicalThis = needsTransform(TransformFlags.ContainsLexicalThis);
-            excludeTransform(TransformFlags.ArrowFunctionScopeExcludes);
-            markTransform(TransformFlags.ThisNodeIsES6ArrowFunction);
-            if (containsLexicalThis) {
-                markTransform(TransformFlags.ThisNodeCapturesLexicalThis);
-            }
-            
             return finishNode(node);
         }
 
@@ -2802,14 +2709,6 @@ namespace ts {
                 ? parseArrowFunctionExpressionBody()
                 : parseIdentifier();
 
-            // Mark transforms
-            let containsLexicalThis = needsTransform(TransformFlags.ContainsLexicalThis); 
-            excludeTransform(TransformFlags.ArrowFunctionScopeExcludes);
-            markTransform(TransformFlags.ThisNodeIsES6ArrowFunction);
-            if (containsLexicalThis) {
-                markTransform(TransformFlags.ThisNodeCapturesLexicalThis);
-            }
-            
             return finishNode(arrowFunction);
         }
 
@@ -3076,13 +2975,6 @@ namespace ts {
             node.operatorToken = operatorToken;
             node.right = right;
             
-            // Mark transforms
-            if (operatorToken.kind === SyntaxKind.EqualsToken
-                && (left.kind === SyntaxKind.ObjectLiteralExpression
-                    || left.kind === SyntaxKind.ArrayLiteralExpression)) {
-                markTransform(TransformFlags.ThisNodeIsES6DestructuringAssignment);
-            }
-            
             return finishNode(node);
         }
 
@@ -3306,10 +3198,7 @@ namespace ts {
                     tagExpression.template = token === SyntaxKind.NoSubstitutionTemplateLiteral
                         ? parseLiteralNode()
                         : parseTemplateExpression();
-                        
-                    // Mark transforms
-                    markTransform(TransformFlags.ThisNodeIsES6TaggedTemplateExpression);
-                        
+
                     expression = finishNode(tagExpression);
                     continue;
                 }
@@ -3422,7 +3311,6 @@ namespace ts {
                 case SyntaxKind.NoSubstitutionTemplateLiteral:
                     return parseLiteralNode();
                 case SyntaxKind.ThisKeyword:
-                    return parseThisKeyword();
                 case SyntaxKind.SuperKeyword:
                 case SyntaxKind.NullKeyword:
                 case SyntaxKind.TrueKeyword:
@@ -3453,11 +3341,6 @@ namespace ts {
             return parseIdentifier(Diagnostics.Expression_expected);
         }
         
-        function parseThisKeyword(): PrimaryExpression {
-            markTransform(TransformFlags.ThisNodeIsThisKeyword);
-            return parseTokenNode<PrimaryExpression>();
-        }
-
         function parseParenthesizedExpression(): ParenthesizedExpression {
             let node = beginNode(factory.createParenthesizedExpression());
             parseExpected(SyntaxKind.OpenParenToken);
@@ -3470,9 +3353,6 @@ namespace ts {
             let node = beginNode(factory.createSpreadElementExpression());
             parseExpected(SyntaxKind.DotDotDotToken);
             node.expression = parseAssignmentExpressionOrHigher();
-            
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6SpreadElement);
             
             return finishNode(node);
         }
@@ -3496,12 +3376,12 @@ namespace ts {
             return finishNode(node);
         }
 
-        function tryParseAccessorDeclaration(fullStart: number, decorators: NodeArray<Decorator>, modifiers: ModifiersArray, isClassElement: boolean): AccessorDeclaration {
+        function tryParseAccessorDeclaration(fullStart: number, decorators: NodeArray<Decorator>, modifiers: ModifiersArray): AccessorDeclaration {
             if (parseContextualModifier(SyntaxKind.GetKeyword)) {
-                return parseAccessorDeclaration(SyntaxKind.GetAccessor, fullStart, decorators, modifiers, isClassElement);
+                return parseAccessorDeclaration(SyntaxKind.GetAccessor, fullStart, decorators, modifiers);
             }
             else if (parseContextualModifier(SyntaxKind.SetKeyword)) {
-                return parseAccessorDeclaration(SyntaxKind.SetAccessor, fullStart, decorators, modifiers, isClassElement);
+                return parseAccessorDeclaration(SyntaxKind.SetAccessor, fullStart, decorators, modifiers);
             }
 
             return undefined;
@@ -3512,7 +3392,7 @@ namespace ts {
             let decorators = parseDecorators();
             let modifiers = parseModifiers();
 
-            let accessor = tryParseAccessorDeclaration(fullStart, decorators, modifiers, /*isClassElement*/ false);
+            let accessor = tryParseAccessorDeclaration(fullStart, decorators, modifiers);
             if (accessor) {
                 return accessor;
             }
@@ -3533,9 +3413,6 @@ namespace ts {
                 let shorthandDeclaration = beginNode(factory.createShorthandPropertyAssignment(), fullStart);
                 shorthandDeclaration.name = <Identifier>propertyName;
                 shorthandDeclaration.questionToken = questionToken;
-                
-                // Mark transforms
-                markTransform(TransformFlags.ThisNodeIsES6ShorthandPropertyName);
                 
                 return finishNode(shorthandDeclaration);
             }
@@ -3578,16 +3455,6 @@ namespace ts {
             node.body = parseFunctionBlock(/*allowYield*/ !!node.asteriskToken, /* ignoreMissingOpenBrace */ false);
             if (saveDecoratorContext) {
                 setDecoratorContext(true);
-            }
-            
-            // Mark transforms
-            let containsCapturedThis = needsTransform(TransformFlags.ContainsCapturedThis); 
-            excludeTransform(TransformFlags.FunctionScopeExcludes);
-            if (node.asteriskToken) {
-                markTransform(TransformFlags.ThisNodeIsES6GeneratorFunction);
-            }
-            if (containsCapturedThis) {
-                markTransform(TransformFlags.ThisNodeNeedsToCaptureThis);
             }
             
             return finishNode(node);
@@ -3716,7 +3583,6 @@ namespace ts {
                 forOfStatement.expression = allowInAnd(parseAssignmentExpressionOrHigher);
                 parseExpected(SyntaxKind.CloseParenToken);
                 forOrForInOrForOfStatement = forOfStatement;
-                markTransform(TransformFlags.ThisNodeIsES6ForOfStatement);
             } else {
                 let forStatement = beginNode(factory.createForStatement(), pos);
                 forStatement.initializer = initializer;
@@ -3747,11 +3613,6 @@ namespace ts {
 
             parseSemicolon();
 
-            // Mark transforms
-            if (inYieldContext()) {
-                markTransform(TransformFlags.ThisNodeIsCompletionStatementInGenerator);
-            }
-
             return finishNode(node);
         }
 
@@ -3764,11 +3625,6 @@ namespace ts {
             }
 
             parseSemicolon();
-            
-            // Mark transforms
-            if (inYieldContext()) {
-                markTransform(TransformFlags.ThisNodeIsCompletionStatementInGenerator);
-            }
             
             return finishNode(node);
         }
@@ -4204,9 +4060,6 @@ namespace ts {
             node.elements = parseDelimitedList(ParsingContext.ObjectBindingElements, parseObjectBindingElement);
             parseExpected(SyntaxKind.CloseBraceToken);
 
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6BindingPattern);
-
             return finishNode(node);
         }
 
@@ -4215,9 +4068,6 @@ namespace ts {
             parseExpected(SyntaxKind.OpenBracketToken);
             node.elements = parseDelimitedList(ParsingContext.ArrayBindingElements, parseArrayBindingElement);
             parseExpected(SyntaxKind.CloseBracketToken);
-            
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6BindingPattern);
             
             return finishNode(node);
         }
@@ -4285,14 +4135,6 @@ namespace ts {
                 setDisallowInContext(savedDisallowIn);
             }
             
-            // Mark transforms
-            if (inYieldContext()) {
-                markTransform(TransformFlags.ThisNodeIsHoistedDeclarationInGenerator);
-            }
-            if (node.flags & (NodeFlags.Let | NodeFlags.Const)) {
-                markTransform(TransformFlags.ThisNodeIsES6LetOrConst);
-            }
-
             return finishNode(node);
         }
 
@@ -4307,11 +4149,6 @@ namespace ts {
             node.declarationList = parseVariableDeclarationList(/*inForStatementInitializer*/ false);
             parseSemicolon();
             
-            // Mark transforms
-            if (node.flags & NodeFlags.Export) {
-                markTransform(TransformFlags.ThisNodeIsES6Export);
-            }
-            
             return finishNode(node);
         }
 
@@ -4325,22 +4162,6 @@ namespace ts {
             fillSignature(SyntaxKind.ColonToken, /*yieldAndGeneratorParameterContext*/ !!node.asteriskToken, /*requireCompleteParameterList*/ false, node);
             node.body = parseFunctionBlockOrSemicolon(!!node.asteriskToken, Diagnostics.or_expected);
             
-            // Mark transforms
-            let containsCapturedThis = needsTransform(TransformFlags.ContainsCapturedThis);
-            excludeTransform(TransformFlags.FunctionScopeExcludes);
-            if (inYieldContext()) {
-                markTransform(TransformFlags.ThisNodeIsHoistedDeclarationInGenerator);
-            }
-            if (node.flags & NodeFlags.Export) {
-                markTransform(TransformFlags.ThisNodeIsES6Export);
-            }
-            if (node.asteriskToken) {
-                markTransform(TransformFlags.ThisNodeIsES6GeneratorFunction);
-            }
-            if (containsCapturedThis) {
-                markTransform(TransformFlags.ThisNodeNeedsToCaptureThis);
-            }
-
             return finishNode(node);
         }
 
@@ -4351,15 +4172,6 @@ namespace ts {
             parseExpected(SyntaxKind.ConstructorKeyword);
             fillSignature(SyntaxKind.ColonToken, /*yieldAndGeneratorParameterContext*/ false, /*requireCompleteParameterList*/ false, node);
             node.body = parseFunctionBlockOrSemicolon(/*isGenerator*/ false, Diagnostics.or_expected);
-
-            // Mark transforms
-            let containsCapturedThis = needsTransform(TransformFlags.ContainsCapturedThis); 
-            excludeTransform(TransformFlags.FunctionScopeExcludes);
-            markTransform(TransformFlags.ThisNodeIsES6ClassConstructor);
-            if (containsCapturedThis) {
-                markTransform(TransformFlags.ThisNodeNeedsToCaptureThis);
-            }
-            
             return finishNode(node);
         }
 
@@ -4372,15 +4184,6 @@ namespace ts {
             method.questionToken = questionToken;
             fillSignature(SyntaxKind.ColonToken, /*yieldAndGeneratorParameterContext*/ !!asteriskToken, /*requireCompleteParameterList*/ false, method);
             method.body = parseFunctionBlockOrSemicolon(!!asteriskToken, diagnosticMessage);
-            
-            // Mark transforms
-            let containsCapturedThis = needsTransform(TransformFlags.ContainsCapturedThis); 
-            excludeTransform(TransformFlags.FunctionScopeExcludes);
-            markTransform(TransformFlags.ThisNodeIsES6Method);
-            if (containsCapturedThis) {
-                markTransform(TransformFlags.ThisNodeNeedsToCaptureThis);
-            }
-            
             return finishNode(method);
         }
 
@@ -4406,10 +4209,6 @@ namespace ts {
                 : doOutsideOfContext(ParserContextFlags.Yield | ParserContextFlags.DisallowIn, parseNonParameterInitializer);
 
             parseSemicolon();
-            
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsTypeScriptPropertyDeclaration);
-            
             return finishNode(property);
         }
 
@@ -4432,20 +4231,13 @@ namespace ts {
             return parseInitializer(/*inParameter*/ false);
         }
 
-        function parseAccessorDeclaration(kind: SyntaxKind, fullStart: number, decorators: NodeArray<Decorator>, modifiers: ModifiersArray, isClassElement: boolean): AccessorDeclaration {
+        function parseAccessorDeclaration(kind: SyntaxKind, fullStart: number, decorators: NodeArray<Decorator>, modifiers: ModifiersArray): AccessorDeclaration {
             let node = beginNode(factory.createNode<AccessorDeclaration>(kind), fullStart);
             node.decorators = decorators;
             setModifiers(node, modifiers);
             node.name = parsePropertyName();
             fillSignature(SyntaxKind.ColonToken, /*yieldAndGeneratorParameterContext*/ false, /*requireCompleteParameterList*/ false, node);
             node.body = parseFunctionBlockOrSemicolon(/*isGenerator*/ false);
-            
-            // Mark transforms
-            excludeTransform(TransformFlags.FunctionScopeExcludes);
-            if (isClassElement) {
-                markTransform(TransformFlags.ThisNodeIsES6ClassAccessor);
-            }
-            
             return finishNode(node);
         }
 
@@ -4544,7 +4336,6 @@ namespace ts {
 
                 let decorator = beginNode(factory.createDecorator(), decoratorStart);
                 decorator.expression = doInDecoratorContext(parseLeftHandSideExpressionOrHigher);
-                markTransform(TransformFlags.ThisNodeIsTypeScriptDecorator);
                 decorators.push(finishNode(decorator));
             }
             if (decorators) {
@@ -4589,7 +4380,7 @@ namespace ts {
             let decorators = parseDecorators();
             let modifiers = parseModifiers();
 
-            let accessor = tryParseAccessorDeclaration(fullStart, decorators, modifiers, /*isClassElement*/ true);
+            let accessor = tryParseAccessorDeclaration(fullStart, decorators, modifiers);
             if (accessor) {
                 return accessor;
             }
@@ -4656,15 +4447,6 @@ namespace ts {
             }
             else {
                 node.members = createMissingList<ClassElement>();
-            }
-
-            if (node.kind === SyntaxKind.ClassDeclaration) {
-                // Mark transforms
-                markTransform(TransformFlags.ThisNodeIsES6ClassDeclaration);
-            }
-            else {
-                // Mark transforms
-                markTransform(TransformFlags.ThisNodeIsES6ClassExpression);
             }
 
             return finishNode(node);
@@ -4768,9 +4550,6 @@ namespace ts {
                 node.members = createMissingList<EnumMember>();
             }
             
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsTypeScriptEnumDeclaration);
-            
             return finishNode(node);
         }
 
@@ -4783,7 +4562,6 @@ namespace ts {
             else {
                 node.statements = createMissingList<Statement>();
             }
-            excludeTransform(TransformFlags.ModuleScopeExcludes);
             return finishNode(node);
         }
 
@@ -4855,10 +4633,6 @@ namespace ts {
                     parseExpected(SyntaxKind.EqualsToken);
                     importEqualsDeclaration.moduleReference = parseModuleReference();
                     parseSemicolon();
-                    
-                    // Mark transforms
-                    markTransform(TransformFlags.ThisNodeIsTypeScriptImportEqualsDeclaration);
-                    
                     return finishNode(importEqualsDeclaration);
                 }
             }
@@ -4880,10 +4654,6 @@ namespace ts {
 
             importDeclaration.moduleSpecifier = parseModuleSpecifier();
             parseSemicolon();
-            
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6ImportDeclaration);
-            
             return finishNode(importDeclaration);
         }
 
@@ -5020,10 +4790,6 @@ namespace ts {
                 }
             }
             parseSemicolon();
-            
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsES6ExportDeclaration);
-            
             return finishNode(node);
         }
 
@@ -5039,10 +4805,6 @@ namespace ts {
             }
             node.expression = parseAssignmentExpressionOrHigher();
             parseSemicolon();
-
-            // Mark transforms
-            markTransform(TransformFlags.ThisNodeIsTypeScriptExportAssignmentDeclaration);;
-
             return finishNode(node);
         }
 

@@ -8,7 +8,7 @@ namespace ts {
     }
 
     export namespace factory {
-        export function setTextRange<TNode extends Node>(node: TNode, range: TextRange): TNode {
+        export function setTextRange<T extends TextRange>(node: T, range: TextRange): T {
             if (!node || !range) {
                 return node;
             }
@@ -163,37 +163,45 @@ namespace ts {
                 right
             );
         }
-
-        // export function createVoidZero(location?: TextRange, flags?: NodeFlags): VoidExpression {
-        //     return createVoidExpression(createNumericLiteral(0, location, flags), location, flags);
-        // }
-
-        // export function makeLeftHandSideExpression(expression: Expression): LeftHandSideExpression {
-        //     if (isLeftHandSideExpression(expression)) {
-        //         return <LeftHandSideExpression>expression;
-        //     }
-
-        //     return createParenthesizedExpression(expression);
-        // }
-
-        // export function createPropertyOrElementAccessExpression(expression: LeftHandSideExpression, propName: Identifier | LiteralExpression): LeftHandSideExpression {
-        //     if (propName.kind !== SyntaxKind.Identifier) {
-        //         return createElementAccessExpression(expression, propName);
-        //     }
-        //     return createPropertyAccessExpression(expression, <Identifier>propName);
-        // }
         
-        // export function getExpressionForEntityName(name: EntityName): LeftHandSideExpression {
-        //     if (!name) {
-        //         return finishNode(beginNode<LeftHandSideExpression>(SyntaxKind.NullKeyword));
-        //     }
+        export function cloneIdentifier(node: Identifier) {
+            return factory.createIdentifier(
+                node.text);
+        }
 
-        //     if (name.kind === SyntaxKind.Identifier) {
-        //         return createIdentifier((<Identifier>name).text);
-        //     }
-        //     else {
-        //         return createPropertyAccessExpression(getExpressionForEntityName((<QualifiedName>name).left), createIdentifier((<QualifiedName>name).right.text));
-        //     }
-        // }
+        export function createVoidZeroExpression(): VoidExpression {
+            return factory.createVoidExpression(factory.createNumericLiteral2(0));
+        }
+
+        export function makeLeftHandSideExpression(expression: Expression): LeftHandSideExpression {
+            if (isLeftHandSideExpression(expression)) {
+                return <LeftHandSideExpression>expression;
+            }
+
+            return factory.createParenthesizedExpression(expression);
+        }
+
+        export function createPropertyOrElementAccessExpression(expression: LeftHandSideExpression, propName: Identifier | LiteralExpression): LeftHandSideExpression {
+            if (propName.kind !== SyntaxKind.Identifier) {
+                return createElementAccessExpression(expression, propName);
+            }
+            
+            return createPropertyAccessExpression(expression, <Identifier>propName);
+        }
+        
+        export function getExpressionForEntityName(name: EntityName): LeftHandSideExpression {
+            if (!name) {
+                return factory.createNode<LeftHandSideExpression>(SyntaxKind.NullKeyword);
+            }
+
+            if (name.kind === SyntaxKind.Identifier) {
+                return factory.createIdentifier((<Identifier>name).text);
+            }
+            else {
+                return factory.createPropertyAccessExpression(
+                    factory.getExpressionForEntityName((<QualifiedName>name).left), 
+                    factory.createIdentifier((<QualifiedName>name).right.text));
+            }
+        }
     }
 }

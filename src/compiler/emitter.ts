@@ -761,7 +761,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
                 increaseIndent();
 
-                if (nodeStartPositionsAreOnSameLine(parent, nodes[0]) || synthesizedNodeStartsOnSameLine(nodes[0])) {
+                if (nodeStartPositionsAreOnSameLine(parent, nodes[0])) {
                     if (spacesBetweenBraces) {
                         write(" ");
                     }
@@ -773,7 +773,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 let lastNode: Node;
                 for (let i = 0, n = nodes.length; i < n; i++) {
                     if (i) {
-                        if (nodeEndIsOnSameLineAsNodeStart(nodes[i - 1], nodes[i]) || synthesizedNodeStartsOnSameLine(nodes[i])) {
+                        if (nodeEndIsOnSameLineAsNodeStart(nodes[i - 1], nodes[i])) {
                             write(", ");
                         }
                         else {
@@ -792,7 +792,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
                 decreaseIndent();
 
-                if (nodeEndPositionsAreOnSameLine(parent, lastNode) || (synthesizedNodeStartsOnSameLine(lastNode))) {
+                if (nodeEndPositionsAreOnSameLine(parent, lastNode)) {
                     if (spacesBetweenBraces) {
                         write(" ");
                     }
@@ -878,9 +878,9 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                 }
                 
                 if (nodeIsSynthesized(node) && (<SynthesizedNode>node).trailingComment) {
-                    write(" /* ");
+                    write(" /*");
                     write((<SynthesizedNode>node).trailingComment);
-                    write(" */");
+                    write("*/");
                 }
             }
 
@@ -1375,21 +1375,6 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
                     write(" ");
                     emit(node.expression);
                 }
-            }
-
-            function needsParenthesisForPropertyAccessOrInvocation(node: Expression) {
-                switch (node.kind) {
-                    case SyntaxKind.Identifier:
-                    case SyntaxKind.ArrayLiteralExpression:
-                    case SyntaxKind.PropertyAccessExpression:
-                    case SyntaxKind.ElementAccessExpression:
-                    case SyntaxKind.CallExpression:
-                    case SyntaxKind.ParenthesizedExpression:
-                        // This list is not exhaustive and only includes those cases that are relevant
-                        // to the check in emitArrayLiteral. More cases can be added as needed.
-                        return false;
-                }
-                return true;
             }
 
             function emitListWithSpread(elements: Expression[], needsUniqueCopy: boolean, multiLine: boolean, trailingComma: boolean, useConcat: boolean) {
@@ -2598,17 +2583,23 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 
             function nodeStartPositionsAreOnSameLine(node1: Node, node2: Node) {
                 return getLineOfLocalPosition(currentSourceFile, skipTrivia(currentSourceFile.text, node1.pos)) ===
-                    getLineOfLocalPosition(currentSourceFile, skipTrivia(currentSourceFile.text, node2.pos));
+                    getLineOfLocalPosition(currentSourceFile, skipTrivia(currentSourceFile.text, node2.pos))
+                    || synthesizedNodeStartsOnSameLine(node1)
+                    || synthesizedNodeStartsOnSameLine(node2);
             }
 
             function nodeEndPositionsAreOnSameLine(node1: Node, node2: Node) {
                 return getLineOfLocalPosition(currentSourceFile, node1.end) ===
-                    getLineOfLocalPosition(currentSourceFile, node2.end);
+                    getLineOfLocalPosition(currentSourceFile, node2.end)
+                    || synthesizedNodeStartsOnSameLine(node1)
+                    || synthesizedNodeStartsOnSameLine(node2);
             }
 
             function nodeEndIsOnSameLineAsNodeStart(node1: Node, node2: Node) {
                 return getLineOfLocalPosition(currentSourceFile, node1.end) ===
-                    getLineOfLocalPosition(currentSourceFile, skipTrivia(currentSourceFile.text, node2.pos));
+                    getLineOfLocalPosition(currentSourceFile, skipTrivia(currentSourceFile.text, node2.pos))
+                    || synthesizedNodeStartsOnSameLine(node1)
+                    || synthesizedNodeStartsOnSameLine(node2);
             }
 
             function emitCaseOrDefaultClause(node: CaseOrDefaultClause) {

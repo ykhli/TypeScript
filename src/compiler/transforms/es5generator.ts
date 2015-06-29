@@ -114,14 +114,48 @@ namespace ts.transform {
         return block && block.kind === BlockKind.With;
     }
     
+    class ExpressionCacheControl implements TransformerCacheControl<Expression> {
+        private transformer: ES5GeneratorBodyTransformer;
+        
+        constructor(transformer: ES5GeneratorBodyTransformer) {
+            this.transformer = transformer;
+        }
+        
+        public shouldCachePreviousNodes(node: Expression) {
+            return needsTransform(node, TransformFlags.ContainsYield);
+        }
+        
+        public cacheNode(node: Expression) {
+            return this.transformer.cacheExpression(node);
+        }
+    }
+    
+    class ObjectLiteralElementCacheControl implements TransformerCacheControl<ObjectLiteralElement> {
+        private transformer: ES5GeneratorBodyTransformer;
+        
+        constructor(transformer: ES5GeneratorBodyTransformer) {
+            this.transformer = transformer;
+        }
+        
+        public shouldCachePreviousNodes(node: ObjectLiteralElement) {
+            return needsTransform(node, TransformFlags.ContainsYield);
+        }
+        
+        public cacheNode(node: ObjectLiteralElement) {
+            return this.transformer.cacheObjectLiteralElement(node);
+        }
+    }
+    
     export class ES5GeneratorBodyTransformer extends Transformer {
         private removeMissingNodes: boolean = true;
-
+        private expressionCacheControl: ExpressionCacheControl;
+        private objectLiteralElementCacheControl: ObjectLiteralElementCacheControl;
+        
         // generator phase 1 transform state
         private state: Identifier;
-        private stateSent: PropertyAccessExpression;
-        private stateLabel: PropertyAccessExpression;
-        private stateTrys: PropertyAccessExpression;
+        private stateSent: LeftHandSideExpression;
+        private stateLabel: LeftHandSideExpression;
+        private stateTrys: LeftHandSideExpression;
         private nextOpCode: LiteralExpression;
         private throwOpCode: LiteralExpression;
         private returnOpCode: LiteralExpression;
@@ -141,7 +175,7 @@ namespace ts.transform {
         private operations: OpCode[];
         private operationArguments: any[][];
         private operationLocations: TextRange[];
-        private hoistedVariables: Identifier[];
+        private hoistedVariables: VariableDeclaration[];
         private hoistedDeclarations: Declaration[];
         private generatedLabels: GeneratedLabel[];
         private pendingLocation: TextRange;
@@ -161,10 +195,10 @@ namespace ts.transform {
         public statements: Statement[];
         
         constructor(previous: Transformer, statements: Statement[]) {
-            super(previous.transformResolver, previous, TransformerScope.Function);
+            super(previous.transformResolver, previous);
             this.statements = statements;
             this.state = factory.createIdentifier(this.transformResolver.makeUniqueName("state"));
-            this.stateSent = factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("sent"));
+            this.stateSent = factory.createCallExpression2(factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("sent")));
             this.stateLabel = factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("label"));
             this.stateTrys = factory.createPropertyAccessExpression2(this.state, factory.createIdentifier("trys"));
             this.nextOpCode = factory.createNumericLiteral2(0, "next");
@@ -178,7 +212,7 @@ namespace ts.transform {
         }
         
         public transform(body: Block): void {
-            // debugPrintTransformFlags(body);
+            debugPrintTransformFlags(body);
             
             let statementOffset = this.statements.length;
 
@@ -209,7 +243,8 @@ namespace ts.transform {
         }
         
         public shouldTransformChildrenOfNode(node: Node) {
-            return needsTransform(node, TransformFlags.SubtreeNeedsTransformForES5Generator);
+            return needsTransform(node, TransformFlags.SubtreeNeedsTransformForES5Generator)
+                && !isFunctionLike(node);
         }
         
         public transformNode(node: Node): Node {
@@ -239,8 +274,6 @@ namespace ts.transform {
                     return this.transformParenthesizedExpression(<ParenthesizedExpression>node);
                 case SyntaxKind.VariableStatement:
                     return this.transformVariableStatement(<VariableStatement>node);
-                case SyntaxKind.ExpressionStatement:
-                    return this.transformExpressionStatement(<ExpressionStatement>node);
                 case SyntaxKind.IfStatement:
                     return this.transformIfStatement(<IfStatement>node);
                 case SyntaxKind.DoStatement:
@@ -362,420 +395,130 @@ namespace ts.transform {
         }
 
         private transformBinaryExpression(node: BinaryExpression): Expression {
-            // if (hasAwaitOrYield(node)) {
-            //     return rewriteBinaryExpression(node, state);
-            // }
+            if (isLogicalBinaryOperator(node.operatorToken.kind)) {
+                if (needsTransform(node, TransformFlags.ContainsYield)) {
+                    return this.transformLogicalBinaryExpression(node);
+                }
+            }
+            else if (isDestructuringAssignment(node)) {
+                return this.transformDestructuringAssignment(node);
+            }
+            else if (isAssignmentOperator(node.operatorToken.kind)) {
+                if (needsTransform(node, TransformFlags.ContainsYield)) {
+                    return this.transformAssignmentExpression(node);
+                }
+            }
+            else if (node.operatorToken.kind === SyntaxKind.CommaToken) {
+                return this.transformCommaExpression(node);
+            }
+            else if (needsTransform(node, TransformFlags.ContainsYield)) {
+                return factory.updateBinaryExpression(
+                    node,
+                    this.cacheExpression(visit(node.left, this)),
+                    visit(node.right, this)
+                );
+            }
 
-            return visit(node, this.previous);
+            return <Expression>super.transformNode(node);
         }
-
-        private transformConditionalExpression(node: ConditionalExpression): Expression {
-            // if (hasAwaitOrYield(node.whenTrue) || hasAwaitOrYield(node.whenFalse)) {
-            //     return rewriteConditionalExpression(node, state);
-            // }
+        
+        private transformLogicalBinaryExpression(node: BinaryExpression) {
+            let resumeLabel = this.defineLabel();
+            let result = this.declareLocal();
+            let code = node.operatorToken.kind === SyntaxKind.AmpersandAmpersandToken 
+                ? OpCode.BreakWhenFalse 
+                : OpCode.BreakWhenTrue;
+            this.writeLocation(node.left);
+            this.emit(OpCode.Assign, result, visit(node.left, this));
+            this.emit(code, resumeLabel, result);
+            this.writeLocation(node.right);
+            this.emit(OpCode.Assign, result, visit(node.right, this));
+            this.markLabel(resumeLabel);
+            return result;
+        }
+        
+        private transformCommaExpression(node: BinaryExpression) {
+            let expressions = this.flattenCommaExpression(node);
+            let merged: Expression;
+            for (let expression of expressions) {
+                if (needsTransform(expression, TransformFlags.ContainsYield) && merged) {
+                    this.emit(OpCode.Statement, factory.createExpressionStatement(merged));
+                    merged = undefined;
+                }
+                
+                let visited = visit(expression, this);
+                if (merged) {
+                    merged = factory.createBinaryExpression2(
+                        SyntaxKind.CommaToken,
+                        merged,
+                        visited);
+                }
+                else {
+                    merged = visited;
+                }
+            }
             
-            return visit(node, this.previous);
+            return merged;
         }
 
-        private transformYieldExpression(node: YieldExpression): Expression {
-            // return rewriteYieldExpression(node);
-            return visit(node, this.previous);
+        private flattenCommaExpression(node: BinaryExpression): Expression[] {
+            let expressions: Expression[] = [];
+            function visitExpression(node: Expression): void {
+                if (isBinaryExpression(node) 
+                    && node.operatorToken.kind === SyntaxKind.CommaToken) {
+                    visitExpression(node.left);
+                    visitExpression(node.right);
+                }
+                else {
+                    expressions.push(node);
+                }
+            }
+            visitExpression(node);
+            return expressions;
+        }
+        
+        private transformDestructuringAssignment(node: BinaryExpression): Expression {
+            let destructured = visit(node, this.previous);
+            let rewritten = visit(destructured, this);
+            if (needsParenthesisForPropertyAccessOrInvocation(node)) {
+                return factory.makeLeftHandSideExpression(rewritten);
+            }
+            return rewritten;
         }
 
-        private transformArrayLiteralExpression(node: ArrayLiteralExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node)) {
-            //     var rewritten = SpreadElementRewriter.rewrite(node.elements);
-            //     if (rewritten) {
-            //         return Visitor.visit(rewritten, visitNode, state);
-            //     }
-            //     return Factory.updateArrayLiteralExpression(node, Visitor.visitNodes(node.elements, visitNode, state, hasAwaitOrYield, cacheExpression));
-            // }
-            return visit(node, this.previous);
+        private transformAssignmentExpression(node: BinaryExpression): Expression {
+            return factory.updateBinaryExpression(
+                node,
+                this.transformLeftHandSideOfAssignmentExpression(node.left),
+                visit(node.right, this));
         }
 
-        private transformObjectLiteralExpression(node: ObjectLiteralExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node)) {
-            //     return Factory.updateObjectLiteralExpression(node, Visitor.visitNodes(node.properties, visitNode, state, hasAwaitOrYield, cacheObjectLiteralElement));
-            // }
-            return visit(node, this.previous);
+        private transformLeftHandSideOfAssignmentExpression(node: Expression): Expression {
+            switch (node.kind) {
+                case SyntaxKind.ElementAccessExpression:
+                    return this.transformLeftHandSideElementAccessExpressionOfAssignmentExpression(<ElementAccessExpression>node);
+
+                case SyntaxKind.PropertyAccessExpression:
+                    return this.transformLeftHandSidePropertyAccessExpressionOfAssignmentExpression(<PropertyAccessExpression>node);
+
+                default:
+                    return super.transformNode(node);
+            }
         }
 
-        private transformElementAccessExpression(node: ElementAccessExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node.argumentExpression)) {
-            //     var object = cacheExpression(Visitor.visit(node.expression, visitNode, state), state);
-            //     return Factory.updateElementAccessExpression(node, object, Visitor.visit(node.argumentExpression, visitNode, state));
-            // }
-            return visit(node, this.previous);
+        private transformLeftHandSideElementAccessExpressionOfAssignmentExpression(node: ElementAccessExpression): ElementAccessExpression {
+            return factory.updateElementAccessExpression(
+                node,
+                this.cacheExpression(visit(node.expression, this)),
+                this.cacheExpression(visit(node.argumentExpression, this)));
         }
 
-        private transformCallExpression(node: CallExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node)) {
-            //     var binding = rewriteLeftHandSideOfCallExpression(node.expression, state);
-            //     var arguments = Visitor.visitNodes(node.arguments, visitNode, state, hasAwaitOrYield, cacheExpression);
-            //     var target = binding.target;
-            //     var thisArg = binding.thisArg;
-            //     if (thisArg) {
-            //         var callArguments: NodeArray<Expression> = Factory.createNodeArray([<Expression>thisArg].concat(arguments), node.arguments);
-            //         var callProperty = Factory.createPropertyAccessExpression(target, Factory.createIdentifier("call"));
-            //         return Factory.updateCallExpression(node, callProperty, callArguments);
-            //     } else {
-            //         return Factory.updateCallExpression(node, target, arguments);
-            //     }
-            // }
-            return visit(node, this.previous);
+        private transformLeftHandSidePropertyAccessExpressionOfAssignmentExpression(node: PropertyAccessExpression): PropertyAccessExpression {
+            return factory.updatePropertyAccessExpression(
+                node,
+                this.cacheExpression(visit(node.expression, this)),
+                node.name);
         }
-
-        private transformNewExpression(node: NewExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node)) {
-            //     return Factory.updateNewExpression(
-            //         node,
-            //         cacheExpression(Visitor.visit(node.expression, visitNode, state), state),
-            //         Visitor.visitNodes(node.arguments, visitNode, state, hasAwaitOrYield, cacheExpression));
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformTaggedTemplateExpression(node: TaggedTemplateExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node.template)) {
-            //     return Factory.updateTaggedTemplateExpression(
-            //         node,
-            //         cacheExpression(Visitor.visit(node.tag, visitNode, state), state),
-            //         Visitor.visit(node.template, visitNode, state));
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformTemplateExpression(node: TemplateExpression): TemplateExpression {
-            // if (hasAwaitOrYield(node)) {
-            //     return Factory.updateTemplateExpression(
-            //         node,
-            //         node.head,
-            //         Visitor.visitNodes(node.templateSpans, visitNode, state, hasAwaitOrYield, cacheTemplateSpan));
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformParenthesizedExpression(node: ParenthesizedExpression): LeftHandSideExpression {
-            // if (hasAwaitOrYield(node)) {
-            //     return rewriteParenthesizedExpression(node, state);
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformFunctionDeclaration(node: FunctionDeclaration): FunctionDeclaration {
-            console.log("transformFunctionDeclaration");
-            this.statements.push(visit(node, this.previous));
-            return;
-        }
-
-        private transformVariableStatement(node: VariableStatement): Statement {
-            // var assignment = rewriteVariableDeclarationList(node.declarationList, state);
-            // if (assignment) {
-            //     return Factory.createExpressionStatement(assignment);
-            // }
-            return;
-        }
-
-        private transformVariableDeclarationListOrExpression(node: VariableDeclarationList | Expression): VariableDeclarationList | Expression {
-            // if (node.kind === SyntaxKind.VariableDeclarationList) {
-            //     return rewriteVariableDeclarationList(<VariableDeclarationList>node, state);
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformExpressionStatement(node: ExpressionStatement): Statement {
-            // if (hasAwaitOrYield(node.expression)) {
-            //     rewriteExpressionStatement(node, state);
-            //     return;
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformIfStatement(node: IfStatement): Statement {
-            // if (hasAwaitOrYield(node.thenStatement) || hasAwaitOrYield(node.elseStatement)) {
-            //     rewriteIfStatement(node, state);
-            //     return;
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformDoStatement(node: DoStatement): Statement {
-            // if (hasAwaitOrYield(node)) {
-            //     rewriteDoStatement(node, state);
-            //     return;
-            // }
-
-            // var { builder } = state;
-            // GeneratorFunctionBuilder.beginScriptContinueBlock(state.builder, getLabelNames(node));
-            // node = Visitor.fallback(node, visitNode, state);
-            
-            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
-            // return node;
-            return visit(node, this.previous);
-        }
-
-        private transformWhileStatement(node: WhileStatement): WhileStatement {
-            // if (hasAwaitOrYield(node)) {
-            //     rewriteWhileStatement(node, state);
-            //     return;
-            // }
-
-            // var { builder } = state;
-            // GeneratorFunctionBuilder.beginScriptContinueBlock(builder, getLabelNames(node));
-            // node = Visitor.fallback(node, visitNode, state);
-            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
-            // return node;
-            return visit(node, this.previous);
-        }
-
-        private transformForStatement(node: ForStatement): ForStatement {
-            // if (hasAwaitOrYield(node.condition) || hasAwaitOrYield(node.iterator) || hasAwaitOrYield(node.statement)) {
-            //     rewriteForStatement(node, state);
-            //     return;
-            // }
-
-            // var { builder } = state;
-            // GeneratorFunctionBuilder.beginScriptContinueBlock(builder, getLabelNames(node));
-            // node = Factory.updateForStatement(
-            //     node,
-            //     Visitor.visit(node.initializer, visitVariableDeclarationListOrExpression, state),
-            //     Visitor.visit(node.condition, visitNode, state),
-            //     Visitor.visit(node.iterator, visitNode, state),
-            //     Visitor.visit(node.statement, visitNode, state));
-            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
-            // return node;
-            return visit(node, this.previous);
-        }
-
-        private transformForInStatement(node: ForInStatement): ForInStatement {
-            // if (hasAwaitOrYield(node.statement)) {
-            //     rewriteForInStatement(node, state);
-            //     return;
-            // }
-
-            // var { builder } = state;
-            // GeneratorFunctionBuilder.beginScriptContinueBlock(builder, getLabelNames(node));
-            // node = Factory.updateForInStatement(
-            //     node,
-            //     Visitor.visit(node.initializer, visitVariableDeclarationListOrExpression, state),
-            //     Visitor.visit(node.expression, visitNode, state),
-            //     Visitor.visit(node.statement, visitNode, state));
-            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
-            // return node;
-            return visit(node, this.previous);
-        }
-
-        private transformBreakStatement(node: BreakOrContinueStatement): Statement {
-            // var label = GeneratorFunctionBuilder.findBreakTarget(state.builder, node.label && node.label.text);
-            // if (label > 0) {
-            //     GeneratorFunctionBuilder.writeLocation(state.builder, node);
-            //     return GeneratorFunctionBuilder.createInlineBreak(state.builder, label);
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformContinueStatement(node: BreakOrContinueStatement): Statement {
-            // var label = GeneratorFunctionBuilder.findContinueTarget(state.builder, node.label && node.label.text);
-            // if (label > 0) {
-            //     GeneratorFunctionBuilder.writeLocation(state.builder, node);
-            //     return GeneratorFunctionBuilder.createInlineBreak(state.builder, label);
-            // }
-            return visit(node, this.previous);
-        }
-
-        private transformReturnStatement(node: ReturnStatement): Statement {
-            // var expression = Visitor.visit(node.expression, visitNode, state);
-            // GeneratorFunctionBuilder.writeLocation(state.builder, node);
-            // return GeneratorFunctionBuilder.createInlineReturn(state.builder, expression);
-            return visit(node, this.previous);
-        }
-
-        private transformSwitchStatement(node: SwitchStatement): Statement {
-            // if (forEach(node.clauses, hasAwaitOrYield)) {
-            //     rewriteSwitchStatement(node, state);
-            //     return;
-            // }
-
-            // var { builder } = state;
-            // GeneratorFunctionBuilder.beginScriptBreakBlock(builder, getLabelNames(node), /*requireLabel*/ false);
-            // node = Visitor.fallback(node, visitNode, state);
-            // GeneratorFunctionBuilder.endScriptBreakBlock(builder);
-            // return node;
-            return visit(node, this.previous);
-        }
-
-        private transformWithStatement(node: WithStatement): Statement {
-            // if (hasAwaitOrYield(node.statement)) {
-            //     rewriteWithStatement(node, state);
-            //     return;
-            // }
-            // return Visitor.fallback(node, visitNode, state);
-            return visit(node, this.previous);
-        }
-
-        private transformLabeledStatement(node: LabeledStatement): Statement {
-            // if (hasAwaitOrYield(node.statement)) {
-            //     rewriteLabeledStatement(node, state);
-            //     return;
-            // }
-
-            // var { builder } = state;
-            // GeneratorFunctionBuilder.beginScriptBreakBlock(builder, getLabelNames(node), /*requireLabel*/ true);
-            // node = Visitor.fallback(node, visitNode, state);
-            // GeneratorFunctionBuilder.endScriptBreakBlock(builder);
-            // return node;
-            return visit(node, this.previous);
-        }
-
-        private transformTryStatement(node: TryStatement): TryStatement {
-            // if (hasAwaitOrYield(node)) {
-            //     rewriteTryStatement(node, state);
-            //     return;
-            // }
-            // return Visitor.fallback(node, visitNode, state);
-            return visit(node, this.previous);
-        }
-
-        // // expression caching
-        // function cacheExpression(node: Expression, state: RewriterState): Identifier {
-        //     var local = GeneratorFunctionBuilder.declareLocal(state.builder);
-        //     var assignExpression = Factory.createBinaryExpression(SyntaxKind.EqualsToken, local, node);
-        //     GeneratorFunctionBuilder.emit(state.builder, OpCode.Statement, Factory.createExpressionStatement(assignExpression));
-        //     return local;
-        // }
-
-        // function cacheObjectLiteralElement(node: ObjectLiteralElement, state: RewriterState): ObjectLiteralElement {
-        //     switch (node.kind) {
-        //         case SyntaxKind.PropertyAssignment:
-        //             return cachePropertyAssignment(<PropertyAssignment>node, state);
-
-        //         case SyntaxKind.ShorthandPropertyAssignment:
-        //             return cacheShorthandPropertyAssignment(<ShorthandPropertyAssignment>node, state);
-
-        //         default:
-        //             return node;
-        //     }
-        // }
-
-        // function cachePropertyAssignment(node: PropertyAssignment, state: RewriterState): ObjectLiteralElement {
-        //     return Factory.updatePropertyAssignment(node, node.name, cacheExpression(node.initializer, state));
-        // }
-
-        // function cacheShorthandPropertyAssignment(node: ShorthandPropertyAssignment, state: RewriterState): ObjectLiteralElement {
-        //     return Factory.createPropertyAssignment(Factory.createIdentifier(node.name.text), cacheExpression(node.name, state));
-        // }
-
-        // function cacheTemplateSpan(node: TemplateSpan, state: RewriterState): TemplateSpan {
-        //     return Factory.updateTemplateSpan(node, cacheExpression(node.expression, state), node.literal);
-        // }
-
-        // // rewriting
-        // function rewriteBinaryExpression(node: BinaryExpression, state: RewriterState): Expression {
-        //     if (isLogicalBinary(node)) {
-        //         if (hasAwaitOrYield(node.right)) {
-        //             return rewriteLogicalBinaryExpression(node, state);
-        //         }
-        //     }
-        //     else if (isDestructuringAssignment(node)) {
-        //         return rewriteDestructuringAssignment(node, state);
-        //     }
-        //     else if (isAssignment(node)) {
-        //         if (hasAwaitOrYield(node.right)) {
-        //             return rewriteAssignmentExpression(node, state);
-        //         }
-        //     }
-        //     else if (node.operator === SyntaxKind.CommaToken) {
-        //         return rewriteCommaExpression(node, state);
-        //     }
-        //     else if (hasAwaitOrYield(node.right)) {
-        //         return Factory.updateBinaryExpression(
-        //             node,
-        //             cacheExpression(Visitor.visit(node.left, visitNode, state), state),
-        //             Visitor.visit(node.right, visitNode, state));
-        //     }
-        //     return Visitor.fallback(node, visitNode, state);
-        // }
-
-        // function rewriteLogicalBinaryExpression(node: BinaryExpression, state: RewriterState): Expression {
-        //     var builder = state.builder;
-        //     var resumeLabel = GeneratorFunctionBuilder.defineLabel(builder);
-        //     var resultLocal = GeneratorFunctionBuilder.declareLocal(builder);
-        //     var code = node.operator === SyntaxKind.AmpersandAmpersandToken ? OpCode.BreakWhenFalse : OpCode.BreakWhenTrue;
-        //     GeneratorFunctionBuilder.writeLocation(builder, node.left);
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.Assign, resultLocal, Visitor.visit(node.left, visitNode, state));
-        //     GeneratorFunctionBuilder.emit(builder, code, resumeLabel, resultLocal);
-        //     GeneratorFunctionBuilder.writeLocation(builder, node.right);
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.Assign, resultLocal, Visitor.visit(node.right, visitNode, state));
-        //     GeneratorFunctionBuilder.markLabel(builder, resumeLabel);
-        //     return resultLocal;
-        // }
-
-        // function rewriteCommaExpression(node: BinaryExpression, state: RewriterState): Expression {
-        //     var builder = state.builder;
-        //     var expressions = flattenCommaExpression(node);
-        //     var merged: Expression;
-        //     for (var i = 0; i < expressions.length; i++) {
-        //         var expression = expressions[i];
-        //         if (hasAwaitOrYield(expression) && merged) {
-        //             GeneratorFunctionBuilder.emit(builder, OpCode.Statement, Factory.createExpressionStatement(merged));
-        //             merged = undefined;
-        //         }
-        //         var visited = Visitor.visit(expression, visitNode, state);
-        //         if (merged) {
-        //             merged = Factory.createBinaryExpression(
-        //                 SyntaxKind.CommaToken,
-        //                 merged,
-        //                 visited);
-        //         }
-        //         else {
-        //             merged = visited;
-        //         }
-        //     }
-        //     return merged;
-        // }
-
-        // function rewriteDestructuringAssignment(node: BinaryExpression, state: RewriterState): Expression {
-        //     var destructured = DestructuringAssignmentRewriter.rewrite(node, state.locals);
-        //     var rewritten = visitBinaryExpression(destructured, state);
-        //     if (needsParenthesisForPropertyAccess(node)) {
-        //         return Factory.makeLeftHandSideExpression(rewritten);
-        //     }
-        //     return rewritten;
-        // }
-
-        // function rewriteAssignmentExpression(node: BinaryExpression, state: RewriterState): Expression {
-        //     return Factory.updateBinaryExpression(
-        //         node,
-        //         rewriteLeftHandSideOfAssignmentExpression(node.left, state),
-        //         Visitor.visit(node.right, visitNode, state));
-        // }
-
-        // function rewriteLeftHandSideOfAssignmentExpression(node: Expression, state: RewriterState): Expression {
-        //     switch (node.kind) {
-        //         case SyntaxKind.ElementAccessExpression:
-        //             return rewriteLeftHandSideElementAccessExpressionOfAssignmentExpression(<ElementAccessExpression>node, state);
-
-        //         case SyntaxKind.PropertyAccessExpression:
-        //             return rewriteLeftHandSidePropertyAccessExpressionOfAssignmentExpression(<PropertyAccessExpression>node, state);
-
-        //         default:
-        //             return Visitor.fallback(node, visitNode, state);
-        //     }
-        // }
-
-        // function rewriteLeftHandSideElementAccessExpressionOfAssignmentExpression(node: ElementAccessExpression, state: RewriterState): ElementAccessExpression {
-        //     return Factory.updateElementAccessExpression(
-        //         node,
-        //         cacheExpression(Visitor.visit(node.expression, visitNode, state), state),
-        //         cacheExpression(Visitor.visit(node.argumentExpression, visitNode, state), state));
-        // }
-
-        // function rewriteLeftHandSidePropertyAccessExpressionOfAssignmentExpression(node: PropertyAccessExpression, state: RewriterState): PropertyAccessExpression {
-        //     return Factory.updatePropertyAccessExpression(
-        //         node,
-        //         cacheExpression(Visitor.visit(node.expression, visitNode, state), state),
-        //         node.name);
-        // }
 
         // function rewriteLeftHandSideOfCallExpression(node: Expression, state: RewriterState): CallBinding {
         //     switch (node.kind) {
@@ -813,10 +556,350 @@ namespace ts.transform {
         //     GeneratorFunctionBuilder.emit(builder, OpCode.Statement, Factory.createExpressionStatement(assignExpression));
         //     return { target, thisArg };
         // }
+        
+        private transformConditionalExpression(node: ConditionalExpression): Expression {
+            if (!this.containsYield(node.whenTrue) && !this.containsYield(node.whenFalse)) {
+                return super.transformNode(node);
+            }
+            
+            let whenFalseLabel = this.defineLabel();
+            let resumeLabel = this.defineLabel();
+            let result = this.declareLocal();
+            this.emit(OpCode.BreakWhenFalse, whenFalseLabel, visit(node.condition, this));
+            this.writeLocation(node.whenTrue);
+            this.emit(OpCode.Assign, result, visit(node.whenTrue, this));
+            this.emit(OpCode.Break, resumeLabel);
+            this.markLabel(whenFalseLabel);
+            this.writeLocation(node.whenFalse);
+            this.emit(OpCode.Assign, result, visit(node.whenFalse, this));
+            this.markLabel(resumeLabel);
+            return result;
+        }
 
-        // function rewriteVariableDeclarationList(node: VariableDeclarationList, state: RewriterState): Expression {
-        //     var declarations = node.declarations;
-        //     return rewriteVariableDeclarations(node, declarations, state);
+        private transformYieldExpression(node: YieldExpression): Expression {
+            let expression = visit(node.expression, this);
+            let resumeLabel = this.defineLabel();
+            this.writeLocation(node);
+            this.emit(node.asteriskToken ? OpCode.YieldStar : OpCode.Yield, expression);
+            this.markLabel(resumeLabel);
+            return this.stateSent;
+        }
+
+        private transformArrayLiteralExpression(node: ArrayLiteralExpression): LeftHandSideExpression {
+            // if (needsTransform(node, TransformFlags.ContainsSpreadElement)) {
+            //     let rewritten = visit(node, new SpreadElementTransformer(this.transformResolver));
+            //     return visit(rewritten, this);
+            // }
+            
+            return factory.updateArrayLiteralExpression(
+                node,
+                visitNodes(node.elements, this, this.getExpressionCachingTransform())
+            );
+        }
+
+        private transformObjectLiteralExpression(node: ObjectLiteralExpression): LeftHandSideExpression {
+            // return factory.updateObjectLiteralExpression(
+            //     node,
+            //     visitNodes(
+            //         node.properties,
+                    
+            //     )
+            // )
+            // if (hasAwaitOrYield(node)) {
+            //     return Factory.updateObjectLiteralExpression(node, Visitor.visitNodes(node.properties, visitNode, state, hasAwaitOrYield, cacheObjectLiteralElement));
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformElementAccessExpression(node: ElementAccessExpression): LeftHandSideExpression {
+            // if (hasAwaitOrYield(node.argumentExpression)) {
+            //     var object = cacheExpression(Visitor.visit(node.expression, visitNode, state), state);
+            //     return Factory.updateElementAccessExpression(node, object, Visitor.visit(node.argumentExpression, visitNode, state));
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformCallExpression(node: CallExpression): LeftHandSideExpression {
+            // if (hasAwaitOrYield(node)) {
+            //     var binding = rewriteLeftHandSideOfCallExpression(node.expression, state);
+            //     var arguments = Visitor.visitNodes(node.arguments, visitNode, state, hasAwaitOrYield, cacheExpression);
+            //     var target = binding.target;
+            //     var thisArg = binding.thisArg;
+            //     if (thisArg) {
+            //         var callArguments: NodeArray<Expression> = Factory.createNodeArray([<Expression>thisArg].concat(arguments), node.arguments);
+            //         var callProperty = Factory.createPropertyAccessExpression(target, Factory.createIdentifier("call"));
+            //         return Factory.updateCallExpression(node, callProperty, callArguments);
+            //     } else {
+            //         return Factory.updateCallExpression(node, target, arguments);
+            //     }
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformNewExpression(node: NewExpression): LeftHandSideExpression {
+            // if (hasAwaitOrYield(node)) {
+            //     return Factory.updateNewExpression(
+            //         node,
+            //         cacheExpression(Visitor.visit(node.expression, visitNode, state), state),
+            //         Visitor.visitNodes(node.arguments, visitNode, state, hasAwaitOrYield, cacheExpression));
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformTaggedTemplateExpression(node: TaggedTemplateExpression): LeftHandSideExpression {
+            // if (hasAwaitOrYield(node.template)) {
+            //     return Factory.updateTaggedTemplateExpression(
+            //         node,
+            //         cacheExpression(Visitor.visit(node.tag, visitNode, state), state),
+            //         Visitor.visit(node.template, visitNode, state));
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformTemplateExpression(node: TemplateExpression): TemplateExpression {
+            // if (hasAwaitOrYield(node)) {
+            //     return Factory.updateTemplateExpression(
+            //         node,
+            //         node.head,
+            //         Visitor.visitNodes(node.templateSpans, visitNode, state, hasAwaitOrYield, cacheTemplateSpan));
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformParenthesizedExpression(node: ParenthesizedExpression): LeftHandSideExpression {
+            // if (hasAwaitOrYield(node)) {
+            //     return rewriteParenthesizedExpression(node, state);
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformFunctionDeclaration(node: FunctionDeclaration): FunctionDeclaration {
+            this.statements.push(visit(node, this.previous));
+            return;
+        }
+
+        private transformVariableStatement(node: VariableStatement): Statement {
+            this.transformVariableDeclarationList(node.declarationList);
+            return undefined;
+        }
+
+        private transformVariableDeclarationList(node: VariableDeclarationList) {
+            let declarations = node.declarations;
+            for (let declaration of declarations) {
+                this.transformVariableDeclaration(declaration);
+            }
+        }
+
+        private transformVariableDeclaration(node: VariableDeclaration) {
+            let name = node.name;
+            if (isBindingPattern(name)) {
+                // var declarations = BindingElementRewriter.rewrite(<BindingElement>node, state.locals);
+                // var result = rewriteVariableDeclarations(node, declarations, state);
+                // rewriteExpression(result, state);
+                // return;               
+            }
+            else {
+                this.hoistVariable(factory.cloneIdentifier(name));
+                let initializer = visit(node.initializer, this);
+                if (initializer) {
+                    this.writeLocation(node);
+                    this.emit(OpCode.Assign, name, initializer);
+                }
+            }
+        }
+
+        private transformVariableDeclarationListOrExpression(node: VariableDeclarationList | Expression): VariableDeclarationList | Expression {
+            // if (node.kind === SyntaxKind.VariableDeclarationList) {
+            //     return rewriteVariableDeclarationList(<VariableDeclarationList>node, state);
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformIfStatement(node: IfStatement): Statement {
+            // if (hasAwaitOrYield(node.thenStatement) || hasAwaitOrYield(node.elseStatement)) {
+            //     rewriteIfStatement(node, state);
+            //     return;
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformDoStatement(node: DoStatement): Statement {
+            // if (hasAwaitOrYield(node)) {
+            //     rewriteDoStatement(node, state);
+            //     return;
+            // }
+
+            // var { builder } = state;
+            // GeneratorFunctionBuilder.beginScriptContinueBlock(state.builder, getLabelNames(node));
+            // node = Visitor.fallback(node, visitNode, state);
+            
+            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
+            // return node;
+            return super.transformNode(node);
+        }
+
+        private transformWhileStatement(node: WhileStatement): WhileStatement {
+            // if (hasAwaitOrYield(node)) {
+            //     rewriteWhileStatement(node, state);
+            //     return;
+            // }
+
+            // var { builder } = state;
+            // GeneratorFunctionBuilder.beginScriptContinueBlock(builder, getLabelNames(node));
+            // node = Visitor.fallback(node, visitNode, state);
+            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
+            // return node;
+            return super.transformNode(node);
+        }
+
+        private transformForStatement(node: ForStatement): ForStatement {
+            // if (hasAwaitOrYield(node.condition) || hasAwaitOrYield(node.iterator) || hasAwaitOrYield(node.statement)) {
+            //     rewriteForStatement(node, state);
+            //     return;
+            // }
+
+            // var { builder } = state;
+            // GeneratorFunctionBuilder.beginScriptContinueBlock(builder, getLabelNames(node));
+            // node = Factory.updateForStatement(
+            //     node,
+            //     Visitor.visit(node.initializer, visitVariableDeclarationListOrExpression, state),
+            //     Visitor.visit(node.condition, visitNode, state),
+            //     Visitor.visit(node.iterator, visitNode, state),
+            //     Visitor.visit(node.statement, visitNode, state));
+            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
+            // return node;
+            return super.transformNode(node);
+        }
+
+        private transformForInStatement(node: ForInStatement): ForInStatement {
+            // if (hasAwaitOrYield(node.statement)) {
+            //     rewriteForInStatement(node, state);
+            //     return;
+            // }
+
+            // var { builder } = state;
+            // GeneratorFunctionBuilder.beginScriptContinueBlock(builder, getLabelNames(node));
+            // node = Factory.updateForInStatement(
+            //     node,
+            //     Visitor.visit(node.initializer, visitVariableDeclarationListOrExpression, state),
+            //     Visitor.visit(node.expression, visitNode, state),
+            //     Visitor.visit(node.statement, visitNode, state));
+            // GeneratorFunctionBuilder.endScriptContinueBlock(builder);
+            // return node;
+            return super.transformNode(node);
+        }
+
+        private transformBreakStatement(node: BreakOrContinueStatement): Statement {
+            // var label = GeneratorFunctionBuilder.findBreakTarget(state.builder, node.label && node.label.text);
+            // if (label > 0) {
+            //     GeneratorFunctionBuilder.writeLocation(state.builder, node);
+            //     return GeneratorFunctionBuilder.createInlineBreak(state.builder, label);
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformContinueStatement(node: BreakOrContinueStatement): Statement {
+            // var label = GeneratorFunctionBuilder.findContinueTarget(state.builder, node.label && node.label.text);
+            // if (label > 0) {
+            //     GeneratorFunctionBuilder.writeLocation(state.builder, node);
+            //     return GeneratorFunctionBuilder.createInlineBreak(state.builder, label);
+            // }
+            return super.transformNode(node);
+        }
+
+        private transformReturnStatement(node: ReturnStatement): Statement {
+            // var expression = Visitor.visit(node.expression, visitNode, state);
+            // GeneratorFunctionBuilder.writeLocation(state.builder, node);
+            // return GeneratorFunctionBuilder.createInlineReturn(state.builder, expression);
+            return super.transformNode(node);
+        }
+
+        private transformSwitchStatement(node: SwitchStatement): Statement {
+            // if (forEach(node.clauses, hasAwaitOrYield)) {
+            //     rewriteSwitchStatement(node, state);
+            //     return;
+            // }
+
+            // var { builder } = state;
+            // GeneratorFunctionBuilder.beginScriptBreakBlock(builder, getLabelNames(node), /*requireLabel*/ false);
+            // node = Visitor.fallback(node, visitNode, state);
+            // GeneratorFunctionBuilder.endScriptBreakBlock(builder);
+            // return node;
+            return super.transformNode(node);
+        }
+
+        private transformWithStatement(node: WithStatement): Statement {
+            // if (hasAwaitOrYield(node.statement)) {
+            //     rewriteWithStatement(node, state);
+            //     return;
+            // }
+            // return Visitor.fallback(node, visitNode, state);
+            return super.transformNode(node);
+        }
+
+        private transformLabeledStatement(node: LabeledStatement): Statement {
+            // if (hasAwaitOrYield(node.statement)) {
+            //     rewriteLabeledStatement(node, state);
+            //     return;
+            // }
+
+            // var { builder } = state;
+            // GeneratorFunctionBuilder.beginScriptBreakBlock(builder, getLabelNames(node), /*requireLabel*/ true);
+            // node = Visitor.fallback(node, visitNode, state);
+            // GeneratorFunctionBuilder.endScriptBreakBlock(builder);
+            // return node;
+            return super.transformNode(node);
+        }
+
+        private transformTryStatement(node: TryStatement): TryStatement {
+            // if (hasAwaitOrYield(node)) {
+            //     rewriteTryStatement(node, state);
+            //     return;
+            // }
+            // return Visitor.fallback(node, visitNode, state);
+            return super.transformNode(node);
+        }
+        
+        private containsYield(node: Node) {
+            return needsTransform(node, TransformFlags.ContainsYield);
+        }
+
+        // expression caching
+        // @internal
+        public cacheExpression(node: Expression): Identifier {
+            let local = this.declareLocal();
+            this.emit(OpCode.Assign, local, node);
+            return local;
+        }
+        
+        // @internal
+        public cacheObjectLiteralElement(node: ObjectLiteralElement) {
+            return node;
+        }
+
+        // function cacheObjectLiteralElement(node: ObjectLiteralElement, state: RewriterState): ObjectLiteralElement {
+        //     switch (node.kind) {
+        //         case SyntaxKind.PropertyAssignment:
+        //             return cachePropertyAssignment(<PropertyAssignment>node, state);
+
+        //         case SyntaxKind.ShorthandPropertyAssignment:
+        //             return cacheShorthandPropertyAssignment(<ShorthandPropertyAssignment>node, state);
+
+        //         default:
+        //             return node;
+        //     }
+        // }
+
+        // function cachePropertyAssignment(node: PropertyAssignment, state: RewriterState): ObjectLiteralElement {
+        //     return Factory.updatePropertyAssignment(node, node.name, cacheExpression(node.initializer, state));
+        // }
+
+        // function cacheShorthandPropertyAssignment(node: ShorthandPropertyAssignment, state: RewriterState): ObjectLiteralElement {
+        //     return Factory.createPropertyAssignment(Factory.createIdentifier(node.name.text), cacheExpression(node.name, state));
+        // }
+
+        // function cacheTemplateSpan(node: TemplateSpan, state: RewriterState): TemplateSpan {
+        //     return Factory.updateTemplateSpan(node, cacheExpression(node.expression, state), node.literal);
         // }
 
         // function rewriteVariableDeclarations(parent: Node, declarations: VariableDeclaration[], state: RewriterState): Expression {
@@ -853,49 +936,7 @@ namespace ts.transform {
         //         return <Identifier>declaration.name;
         //     }
         //     return mergedAssignment;
-        // }
-
-        // function rewriteVariableDeclaration(node: VariableDeclaration, state: RewriterState): BinaryExpression {
-        //     var builder = state.builder;
-        //     if (isBindingPattern(node.name)) {
-        //         var declarations = BindingElementRewriter.rewrite(<BindingElement>node, state.locals);
-        //         var result = rewriteVariableDeclarations(node, declarations, state);
-        //         rewriteExpression(result, state);
-        //         return;
-        //     }
-        //     GeneratorFunctionBuilder.addVariable(builder, Factory.createIdentifier((<Identifier>node.name).text));
-        //     var initializer = Visitor.visit(node.initializer, visitNode, state);
-        //     if (initializer) {
-        //         return Factory.createBinaryExpression(SyntaxKind.EqualsToken, <Identifier>node.name, initializer, node);
-        //     }
-        // }
-
-        // function rewriteConditionalExpression(node: ConditionalExpression, state: RewriterState): Expression {
-        //     var builder = state.builder;
-        //     var whenFalseLabel = GeneratorFunctionBuilder.defineLabel(builder);
-        //     var resumeLabel = GeneratorFunctionBuilder.defineLabel(builder);
-        //     var resultLocal = GeneratorFunctionBuilder.declareLocal(builder);
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.BreakWhenFalse, whenFalseLabel, Visitor.visit(node.condition, visitNode, state));
-        //     GeneratorFunctionBuilder.writeLocation(builder, node.whenTrue);
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.Assign, resultLocal, Visitor.visit(node.whenTrue, visitNode, state));
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.Break, resumeLabel);
-        //     GeneratorFunctionBuilder.markLabel(builder, whenFalseLabel);
-        //     GeneratorFunctionBuilder.writeLocation(builder, node.whenFalse);
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.Assign, resultLocal, Visitor.visit(node.whenFalse, visitNode, state));
-        //     GeneratorFunctionBuilder.markLabel(builder, resumeLabel);
-        //     return resultLocal;
-        // }
-
-        // function rewriteYieldExpression(node: YieldExpression, state: RewriterState): Expression {
-        //     var builder = state.builder;
-        //     var expression = Visitor.visit(node.expression, visitNode, state);
-        //     var resumeLabel = GeneratorFunctionBuilder.defineLabel(builder);
-        //     GeneratorFunctionBuilder.writeLocation(builder, node);
-        //     Debug.assert(!node.asteriskToken, "yield* not supported");
-        //     GeneratorFunctionBuilder.emit(builder, OpCode.Yield, expression);
-        //     GeneratorFunctionBuilder.markLabel(builder, resumeLabel);
-        //     return GeneratorFunctionBuilder.createResume(builder);
-        // }
+        // }        
 
         // function rewriteParenthesizedExpression(node: ParenthesizedExpression, state: RewriterState): LeftHandSideExpression {
         //     var expression = Visitor.visit(node.expression, visitNode, state);
@@ -1153,6 +1194,11 @@ namespace ts.transform {
         //     }
         //     GeneratorFunctionBuilder.endExceptionBlock(builder);
         // }
+        
+        private getExpressionCachingTransform(): ExpressionCacheControl {
+            return this.expressionCacheControl 
+                || (this.expressionCacheControl = new ExpressionCacheControl(this));
+        }
 
         private writeLocation(location: TextRange): void {
             this.pendingLocation = location;
@@ -1178,9 +1224,14 @@ namespace ts.transform {
         private hoistVariable(node: Identifier): void {
             if (!this.hoistedVariables) {
                 this.hoistedVariables = [];
+                this.statements.push(
+                    factory.createVariableStatement(
+                        factory.createVariableDeclarationList(this.hoistedVariables)
+                    )
+                );
             }
             
-            this.hoistedVariables.push(node);
+            this.hoistedVariables.push(factory.createVariableDeclaration2(node));
         }
         
         private hoistFunctionDeclaration(node: FunctionDeclaration): void {
