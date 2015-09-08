@@ -146,38 +146,10 @@ namespace ts {
         
         return { resolvedFileName: undefined, failedLookupLocations };
     }
-    
-    export function baseUrlModuleNameResolver(moduleName: string, containingFile: string, baseUrl: string, host: ModuleResolutionHost): ResolvedModule {
-        Debug.assert(baseUrl !== undefined);
-        
-        let normalizedModuleName = normalizeSlashes(moduleName);         
-        let basePart = useBaseUrl(moduleName) ? baseUrl : getDirectoryPath(containingFile);        
-        let candidate = normalizePath(combinePaths(basePart, moduleName));
-        
-        let failedLookupLocations: string[] = [];
-        
-        return forEach(supportedExtensions, ext => tryLoadFile(candidate + ext)) || { resolvedFileName: undefined, failedLookupLocations }; 
-        
-        function tryLoadFile(location: string): ResolvedModule {
-            if (host.fileExists(location)) {
-                return { resolvedFileName: location, failedLookupLocations }; 
-            }
-            else {
-                failedLookupLocations.push(location);
-                return undefined;
-            }
-        }
-    }
-    
+
     function nameStartsWithDotSlashOrDotDotSlash(name: string) {
         let i = name.lastIndexOf("./", 1);
         return i === 0 || (i === 1 && name.charCodeAt(0) === CharacterCodes.dot);
-    }
-    
-    function useBaseUrl(moduleName: string): boolean {
-        // path is not rooted
-        // module name does not start with './' or '../'
-        return getRootLength(moduleName) === 0 && !nameStartsWithDotSlashOrDotDotSlash(moduleName);
     }
 
     export function classicNameResolver(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModule {
