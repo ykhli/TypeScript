@@ -1359,6 +1359,7 @@ namespace ts {
         /* @internal */ getSymbolCount(): number;
         /* @internal */ getTypeCount(): number;
 
+        /* @internal */ getFileProcessingDiagnostics(): DiagnosticCollection;
         // For testing purposes only.
         /* @internal */ structureIsReused?: boolean;
     }
