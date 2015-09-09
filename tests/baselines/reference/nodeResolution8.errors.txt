@@ -1,0 +1,16 @@
+tests/cases/compiler/node_modules/a/index.d.ts(1,1): error TS7027: Proper external modules cannot use tripleslash references.
+
+
+==== tests/cases/compiler/b.ts (0 errors) ====
+    import y = require("a");
+==== tests/cases/compiler/node_modules/a/ref.ts (0 errors) ====
+    
+    var x = 1;
+    
+==== tests/cases/compiler/node_modules/a/index.d.ts (1 errors) ====
+    /// <reference path="ref.ts"/>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+!!! error TS7027: Proper external modules cannot use tripleslash references.
+    export declare var y;
+    
+    

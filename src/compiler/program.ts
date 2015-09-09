@@ -11,7 +11,8 @@ namespace ts {
 
     /** The version of the TypeScript compiler release */
     
-    let emptyArray: any[] = [];
+    const emptyArray: any[] = [];
+    const defaultImportResolutionContext: ImportResolutionContext = { loadOnlyTrueExternalModules: false };
     
     export const version = "1.6.0";
 
@@ -37,36 +38,36 @@ namespace ts {
         return normalizePath(referencedFileName);
     }
     
-    export function resolveModuleName(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+    export function resolveModuleName(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, context: ImportResolutionContext, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         let moduleResolution = compilerOptions.moduleResolution !== undefined 
             ? compilerOptions.moduleResolution
             : compilerOptions.module === ModuleKind.CommonJS ? ModuleResolutionKind.NodeJs : ModuleResolutionKind.Classic;
             
         switch (moduleResolution) {
-            case ModuleResolutionKind.NodeJs: return nodeModuleNameResolver(moduleName, containingFile, host);
+            case ModuleResolutionKind.NodeJs: return nodeModuleNameResolver(moduleName, containingFile, context, host);
             case ModuleResolutionKind.Classic: return classicNameResolver(moduleName, containingFile, compilerOptions, host);
         }
     }
     
-    export function nodeModuleNameResolver(moduleName: string, containingFile: string, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+    export function nodeModuleNameResolver(moduleName: string, containingFile: string, context: ImportResolutionContext, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         let containingDirectory = getDirectoryPath(containingFile);
 
         if (getRootLength(moduleName) !== 0 || nameStartsWithDotSlashOrDotDotSlash(moduleName)) {
             let failedLookupLocations: string[] = [];
             let candidate = normalizePath(combinePaths(containingDirectory, moduleName));
-            let resolvedFileName = loadNodeModuleFromFile(candidate, /* loadOnlyDts */ false, failedLookupLocations, host);
+            let resolvedFileName = loadNodeModuleFromFile(candidate, /* loadOnlyDts */ context.loadOnlyTrueExternalModules, failedLookupLocations, host);
             
             if (resolvedFileName) {
-                return { resolvedModule: { resolvedFileName, shouldBeTrueExternalModule: false}, failedLookupLocations };
+                return { resolvedModule: { resolvedFileName, shouldBeTrueExternalModule: context.loadOnlyTrueExternalModules}, failedLookupLocations };
             }
             
-            resolvedFileName = loadNodeModuleFromDirectory(candidate, /* loadOnlyDts */ false, failedLookupLocations, host);
+            resolvedFileName = loadNodeModuleFromDirectory(candidate, /* loadOnlyDts */ context.loadOnlyTrueExternalModules, failedLookupLocations, host);
             return resolvedFileName 
-                ? { resolvedModule: { resolvedFileName, shouldBeTrueExternalModule: false }, failedLookupLocations }
+                ? { resolvedModule: { resolvedFileName, shouldBeTrueExternalModule: context.loadOnlyTrueExternalModules }, failedLookupLocations }
                 : { resolvedModule: undefined, failedLookupLocations }
         }
         else {
-            return loadModuleFromNodeModules(moduleName, containingDirectory, host);
+            return loadModuleFromNodeModules(moduleName, containingDirectory, context, host);
         }
     }
     
@@ -120,7 +121,7 @@ namespace ts {
         return loadNodeModuleFromFile(combinePaths(candidate, "index"), loadOnlyDts, failedLookupLocation, host);
     }
     
-    function loadModuleFromNodeModules(moduleName: string, directory: string, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+    function loadModuleFromNodeModules(moduleName: string, directory: string, context: ImportResolutionContext, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         let failedLookupLocations: string[] = []; 
         directory = normalizeSlashes(directory);
         while (true) {
@@ -350,8 +351,8 @@ namespace ts {
         host = host || createCompilerHost(options);
         
         const resolveModuleNamesWorker = host.resolveModuleNames 
-            ? ((moduleNames: string[], containingFile: string) => host.resolveModuleNames(moduleNames, containingFile)) 
-            : ((moduleNames: string[], containingFile: string) => map(moduleNames, moduleName => resolveModuleName(moduleName, containingFile, options, host).resolvedModule));
+            ? ((moduleNames: string[], containingFile: string, context: ImportResolutionContext) => host.resolveModuleNames(moduleNames, containingFile, context)) 
+            : ((moduleNames: string[], containingFile: string, context: ImportResolutionContext) => map(moduleNames, moduleName => resolveModuleName(moduleName, containingFile, options, context, host).resolvedModule));
 
         let filesByName = createFileMap<SourceFile>(fileName => host.getCanonicalFileName(fileName));
         
@@ -445,7 +446,7 @@ namespace ts {
                     return false;
                 }
 
-                if (oldSourceFile !== newSourceFile) {                    
+                if (oldSourceFile !== newSourceFile) {
                     if (oldSourceFile.hasNoDefaultLib !== newSourceFile.hasNoDefaultLib) {
                         // value of no-default-lib has changed
                         // this will affect if default library is injected into the list of files
@@ -467,7 +468,7 @@ namespace ts {
                     
                     if (resolveModuleNamesWorker) {
                         let moduleNames = map(newSourceFile.imports, name => name.text);
-                        let resolutions = resolveModuleNamesWorker(moduleNames, newSourceFile.fileName);
+                        let resolutions = resolveModuleNamesWorker(moduleNames, newSourceFile.fileName, oldSourceFile.importResolutionContext);
                         // ensure that module resolution results are still correct
                         for (let i = 0; i < moduleNames.length; ++i) {
                             const newResolution = resolutions[i];
@@ -735,7 +736,7 @@ namespace ts {
                     diagnostic = Diagnostics.File_0_has_unsupported_extension_The_only_supported_extensions_are_1;
                     diagnosticArgument = [fileName, "'" + supportedExtensions.join("', '") + "'"];
                 }
-                else if (!findSourceFile(fileName, isDefaultLib, refFile, refPos, refEnd)) {
+                else if (!findSourceFile(fileName, isDefaultLib, defaultImportResolutionContext, refFile, refPos, refEnd)) {
                     diagnostic = Diagnostics.File_0_not_found;
                     diagnosticArgument = [fileName];
                 }
@@ -745,13 +746,13 @@ namespace ts {
                 }
             }
             else {
-                let nonTsFile: SourceFile = options.allowNonTsExtensions && findSourceFile(fileName, isDefaultLib, refFile, refPos, refEnd);
+                let nonTsFile: SourceFile = options.allowNonTsExtensions && findSourceFile(fileName, isDefaultLib, defaultImportResolutionContext, refFile, refPos, refEnd);
                 if (!nonTsFile) {
                     if (options.allowNonTsExtensions) {
                         diagnostic = Diagnostics.File_0_not_found;
                         diagnosticArgument = [fileName];
                     }
-                    else if (!forEach(supportedExtensions, extension => findSourceFile(fileName + extension, isDefaultLib, refFile, refPos, refEnd))) {
+                    else if (!forEach(supportedExtensions, extension => findSourceFile(fileName + extension, isDefaultLib, defaultImportResolutionContext, refFile, refPos, refEnd))) {
                         diagnostic = Diagnostics.File_0_not_found;
                         fileName += ".ts";
                         diagnosticArgument = [fileName];
@@ -770,7 +771,7 @@ namespace ts {
         }
 
         // Get source file from normalized fileName
-        function findSourceFile(fileName: string, isDefaultLib: boolean, refFile?: SourceFile, refPos?: number, refEnd?: number): SourceFile {
+        function findSourceFile(fileName: string, isDefaultLib: boolean, importResolutionContext: ImportResolutionContext, refFile?: SourceFile, refPos?: number, refEnd?: number): SourceFile {
             let canonicalName = host.getCanonicalFileName(normalizeSlashes(fileName));
             if (filesByName.contains(canonicalName)) {
                 // We've already looked for this file, use cached result
@@ -793,16 +794,25 @@ namespace ts {
                         fileProcessingDiagnostics.add(createCompilerDiagnostic(Diagnostics.Cannot_read_file_0_Colon_1, fileName, hostErrorMessage));
                     }
                 });
+
+                // stash import resolution context on the file
                 filesByName.set(canonicalName, file);
+                
                 if (file) {
+                    file.importResolutionContext = importResolutionContext;
+                    
+                    if (refFile && importResolutionContext.loadOnlyTrueExternalModules && !isExternalModule(file)) {
+                        fileProcessingDiagnostics.add(createFileDiagnostic(refFile, refPos, refEnd - refPos, Diagnostics.File_0_is_not_a_module, file.fileName))
+                    }
+                    
                     skipDefaultLib = skipDefaultLib || file.hasNoDefaultLib;
 
                     // Set the source file for normalized absolute path
                     filesByName.set(canonicalAbsolutePath, file);
-                    
+                                        
                     let basePath = getDirectoryPath(fileName);
                     if (!options.noResolve) {
-                        processReferencedFiles(file, basePath);
+                        processReferencedFiles(file, basePath, importResolutionContext);
                     }
 
                     // always process imported modules to record module name resolutions
@@ -838,10 +848,20 @@ namespace ts {
             }
         }
 
-        function processReferencedFiles(file: SourceFile, basePath: string) {
+        function processReferencedFiles(file: SourceFile, basePath: string, importResolutionContext: ImportResolutionContext) {
+            if (importResolutionContext.loadOnlyTrueExternalModules && file.referencedFiles.length) {
+                let firstReference = file.referencedFiles[0];
+                fileProcessingDiagnostics.add(createFileDiagnostic(file, firstReference.pos, firstReference.end - firstReference.pos, Diagnostics.Proper_external_modules_cannot_use_tripleslash_references));
+            }
+            
             forEach(file.referencedFiles, ref => {
-                let referencedFileName = resolveTripleslashReference(ref.fileName, file.fileName);
-                processSourceFile(referencedFileName, /* isDefaultLib */ false, file, ref.pos, ref.end);
+                // tripleslash references are not permitted in external modules and we issue an error in this case
+                // however for the sake of better editing experience we do follow references d.ts files because 
+                // they don't produce any files during the emit phase (and thus cannot override any user code)
+                if (!importResolutionContext.loadOnlyTrueExternalModules || fileExtensionIs(ref.fileName, ".d.ts")) {
+                    let referencedFileName = resolveTripleslashReference(ref.fileName, file.fileName);
+                    processSourceFile(referencedFileName, /* isDefaultLib */ false, file, ref.pos, ref.end);
+                }
             });
         }
        
@@ -850,22 +870,13 @@ namespace ts {
             if (file.imports.length) {
                 file.resolvedModules = {};
                 let moduleNames = map(file.imports, name => name.text);
-                let resolutions = resolveModuleNamesWorker(moduleNames, file.fileName);
+                let resolutions = resolveModuleNamesWorker(moduleNames, file.fileName, file.importResolutionContext);
                 for (let i = 0; i < file.imports.length; ++i) {
                     let resolution = resolutions[i];
                     setResolvedModule(file, moduleNames[i], resolution);
                     if (resolution && !options.noResolve) {
-                        let importedSourceFile = findModuleSourceFile(resolution.resolvedFileName, file.imports[i]);
-                        if (importedSourceFile && resolution.shouldBeTrueExternalModule) {
-                            if (!isExternalModule(importedSourceFile)) {
-                                let span = getErrorSpanForNode(file, file.imports[i]);
-                                fileProcessingDiagnostics.add(createFileDiagnostic(file, span.start, span.length, Diagnostics.File_0_is_not_a_module, importedSourceFile.fileName))
-                            }
-                            else if (importedSourceFile.referencedFiles.length) {
-                                let firstReference = importedSourceFile.referencedFiles[0];
-                                fileProcessingDiagnostics.add(createFileDiagnostic(importedSourceFile, firstReference.pos, firstReference.end - firstReference.pos, Diagnostics.Proper_external_modules_cannot_use_tripleslash_references));
-                            }
-                        } 
+                        let importResolutionContext: ImportResolutionContext = { loadOnlyTrueExternalModules: resolution.shouldBeTrueExternalModule };
+                        findModuleSourceFile(resolution.resolvedFileName, file.imports[i], importResolutionContext);
                     }
                 }
             }
@@ -875,8 +886,8 @@ namespace ts {
             }
             return;
 
-            function findModuleSourceFile(fileName: string, nameLiteral: Expression) {
-                return findSourceFile(fileName, /* isDefaultLib */ false, file, nameLiteral.pos, nameLiteral.end);
+            function findModuleSourceFile(fileName: string, nameLiteral: Expression, importResolutionContext: ImportResolutionContext ) {
+                return findSourceFile(fileName, /* isDefaultLib */ false, importResolutionContext, file, nameLiteral.pos, nameLiteral.end);
             }
         }
 

@@ -804,6 +804,7 @@ namespace ts {
         public nameTable: Map<string>;
         public resolvedModules: Map<ResolvedModule>;
         public imports: LiteralExpression[];
+        public importResolutionContext: ImportResolutionContext;
         private namedDeclarations: Map<Declaration[]>;
 
         public update(newText: string, textChangeRange: TextChangeRange): SourceFile {
@@ -1022,7 +1023,7 @@ namespace ts {
          * if implementation is omitted then language service will use built-in module resolution logic and get answers to 
          * host specific questions using 'getScriptSnapshot'.
          */
-        resolveModuleNames?(moduleNames: string[], containingFile: string): ResolvedModule[];
+        resolveModuleNames?(moduleNames: string[], containingFile: string, importResolutionContext: ImportResolutionContext): ResolvedModule[];
     }
 
     //
@@ -2630,7 +2631,7 @@ namespace ts {
             };
 
             if (host.resolveModuleNames) {
-                compilerHost.resolveModuleNames = (moduleNames, containingFile) => host.resolveModuleNames(moduleNames, containingFile)
+                compilerHost.resolveModuleNames = (moduleNames, containingFile, context) => host.resolveModuleNames(moduleNames, containingFile, context)
             }
 
             let newProgram = createProgram(hostCache.getRootFileNames(), newSettings, compilerHost, program);

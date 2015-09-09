@@ -1,0 +1,19 @@
+=== tests/cases/compiler/b.ts ===
+import y = require("a");
+>y : typeof y
+
+=== tests/cases/compiler/node_modules/a/m.d.ts ===
+export declare interface I { x }
+>I : I
+>x : any
+
+=== tests/cases/compiler/node_modules/a/index.d.ts ===
+// should load m.d.ts file
+import * as m from './m'
+>m : typeof m
+
+declare var v: m.I;
+>v : m.I
+>m : any
+>I : m.I
+

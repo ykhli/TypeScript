@@ -1286,6 +1286,7 @@ namespace ts {
         // Content of this fiels should never be used directly - use getResolvedModuleFileName/setResolvedModuleFileName functions instead
         /* @internal */ resolvedModules: Map<ResolvedModule>;
         /* @internal */ imports: LiteralExpression[];
+        /* @internal */ importResolutionContext: ImportResolutionContext;
     }
 
     export interface ScriptReferenceHost {
@@ -2280,6 +2281,10 @@ namespace ts {
         resolvedModule: ResolvedModule;
         failedLookupLocations: string[];
     }
+    
+    export interface ImportResolutionContext {
+        loadOnlyTrueExternalModules: boolean
+    }
 
     export interface CompilerHost extends ModuleResolutionHost {
         getSourceFile(fileName: string, languageVersion: ScriptTarget, onError?: (message: string) => void): SourceFile;
@@ -2298,7 +2303,7 @@ namespace ts {
          * If resolveModuleNames is implemented then implementation for members from ModuleResolutionHost can be just 
          * 'throw new Error("NotImplemented")'  
          */
-        resolveModuleNames?(moduleNames: string[], containingFile: string): ResolvedModule[];
+        resolveModuleNames?(moduleNames: string[], containingFile: string, context: ImportResolutionContext): ResolvedModule[];
     }
 
     export interface TextSpan {

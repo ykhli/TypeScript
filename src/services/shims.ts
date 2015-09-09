@@ -939,10 +939,11 @@ namespace ts {
             return forwardJSONCall(this.logger, actionDescription, action, this.logPerformance);
         }
         
-        public resolveModuleName(fileName: string, moduleName: string, compilerOptionsJson: string): string {
+        public resolveModuleName(fileName: string, moduleName: string, compilerOptionsJson: string, importResolutionContextJson: string): string {
             return this.forwardJSONCall(`resolveModuleName('${fileName}')`, () => {
                 let compilerOptions = <CompilerOptions>JSON.parse(compilerOptionsJson);
-                return resolveModuleName(moduleName, normalizeSlashes(fileName), compilerOptions, this.host);
+                let context = <ImportResolutionContext>JSON.parse(importResolutionContextJson);
+                return resolveModuleName(moduleName, normalizeSlashes(fileName), compilerOptions, context, this.host);
             }); 
         }
 

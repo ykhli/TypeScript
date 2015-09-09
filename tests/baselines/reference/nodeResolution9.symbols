@@ -1,0 +1,19 @@
+=== tests/cases/compiler/b.ts ===
+import y = require("a");
+>y : Symbol(y, Decl(b.ts, 0, 0))
+
+=== tests/cases/compiler/node_modules/a/m.d.ts ===
+export declare interface I { x }
+>I : Symbol(I, Decl(m.d.ts, 0, 0))
+>x : Symbol(x, Decl(m.d.ts, 0, 28))
+
+=== tests/cases/compiler/node_modules/a/index.d.ts ===
+// should load m.d.ts file
+import * as m from './m'
+>m : Symbol(m, Decl(index.d.ts, 1, 6))
+
+declare var v: m.I;
+>v : Symbol(v, Decl(index.d.ts, 2, 11))
+>m : Symbol(m, Decl(index.d.ts, 1, 6))
+>I : Symbol(m.I, Decl(m.d.ts, 0, 0))
+

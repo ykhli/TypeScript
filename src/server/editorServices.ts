@@ -99,7 +99,7 @@ namespace ts.server {
             }
         }
         
-        resolveModuleNames(moduleNames: string[], containingFile: string): ResolvedModule[] {
+        resolveModuleNames(moduleNames: string[], containingFile: string, importResolutionContext: ts.ImportResolutionContext): ResolvedModule[] {
             let currentResolutionsInFile = this.resolvedModuleNames.get(containingFile);
             
             let newResolutions: Map<TimestampedResolvedModule> = {};
@@ -117,7 +117,7 @@ namespace ts.server {
                         resolution = existingResolution;
                     }
                     else {
-                        resolution = <TimestampedResolvedModule>resolveModuleName(moduleName, containingFile, compilerOptions, this.moduleResolutionHost);
+                        resolution = <TimestampedResolvedModule>resolveModuleName(moduleName, containingFile, compilerOptions, importResolutionContext, this.moduleResolutionHost);
                         resolution.lastCheckTime = Date.now();
                         newResolutions[moduleName] = resolution;
                     }

@@ -224,7 +224,7 @@ module Harness.LanguageService {
                     let preprocessInfo = ts.preProcessFile(scriptInfo.content, /*readImportFiles*/ true);
                     let imports: ts.Map<ts.ResolvedModule> = {};
                     for (let module of preprocessInfo.importedFiles) {
-                        let resolutionInfo = ts.resolveModuleName(module.fileName, fileName, compilerOptions, moduleResolutionHost);
+                        let resolutionInfo = ts.resolveModuleName(module.fileName, fileName, compilerOptions, {loadOnlyTrueExternalModules: false }, moduleResolutionHost);
                         if (resolutionInfo.resolvedModule) {
                             imports[module.fileName] = resolutionInfo.resolvedModule;
                         }
