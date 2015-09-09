@@ -3,6 +3,7 @@
 /// <reference path="core.ts" />
 
 namespace ts {
+
     /* @internal */ export let programTime = 0;
     /* @internal */ export let emitTime = 0;
     /* @internal */ export let ioReadTime = 0;
@@ -36,7 +37,7 @@ namespace ts {
         return normalizePath(referencedFileName);
     }
     
-    export function resolveModuleName(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModule {
+    export function resolveModuleName(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         let moduleResolution = compilerOptions.moduleResolution !== undefined 
             ? compilerOptions.moduleResolution
             : compilerOptions.module === ModuleKind.CommonJS ? ModuleResolutionKind.NodeJs : ModuleResolutionKind.Classic;
@@ -47,8 +48,8 @@ namespace ts {
         }
     }
     
-    export function nodeModuleNameResolver(moduleName: string, containingFile: string, host: ModuleResolutionHost): ResolvedModule {
-        let containingDirectory = getDirectoryPath(containingFile);        
+    export function nodeModuleNameResolver(moduleName: string, containingFile: string, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+        let containingDirectory = getDirectoryPath(containingFile);
 
         if (getRootLength(moduleName) !== 0 || nameStartsWithDotSlashOrDotDotSlash(moduleName)) {
             let failedLookupLocations: string[] = [];
@@ -56,11 +57,13 @@ namespace ts {
             let resolvedFileName = loadNodeModuleFromFile(candidate, /* loadOnlyDts */ false, failedLookupLocations, host);
             
             if (resolvedFileName) {
-                return { resolvedFileName, failedLookupLocations };
+                return { resolvedModule: { resolvedFileName, shouldBeTrueExternalModule: false}, failedLookupLocations };
             }
             
             resolvedFileName = loadNodeModuleFromDirectory(candidate, /* loadOnlyDts */ false, failedLookupLocations, host);
-            return { resolvedFileName, failedLookupLocations };
+            return resolvedFileName 
+                ? { resolvedModule: { resolvedFileName, shouldBeTrueExternalModule: false }, failedLookupLocations }
+                : { resolvedModule: undefined, failedLookupLocations }
         }
         else {
             return loadModuleFromNodeModules(moduleName, containingDirectory, host);
@@ -117,7 +120,7 @@ namespace ts {
         return loadNodeModuleFromFile(combinePaths(candidate, "index"), loadOnlyDts, failedLookupLocation, host);
     }
     
-    function loadModuleFromNodeModules(moduleName: string, directory: string, host: ModuleResolutionHost): ResolvedModule {
+    function loadModuleFromNodeModules(moduleName: string, directory: string, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         let failedLookupLocations: string[] = []; 
         directory = normalizeSlashes(directory);
         while (true) {
@@ -127,12 +130,12 @@ namespace ts {
                 let candidate = normalizePath(combinePaths(nodeModulesFolder, moduleName));
                 let result = loadNodeModuleFromFile(candidate, /* loadOnlyDts */ true, failedLookupLocations, host);
                 if (result) {
-                    return { resolvedFileName: result, failedLookupLocations };
+                    return { resolvedModule: { resolvedFileName: result, shouldBeTrueExternalModule: true }, failedLookupLocations };
                 }
                 
                 result = loadNodeModuleFromDirectory(candidate, /* loadOnlyDts */ true, failedLookupLocations, host);
                 if (result) {
-                    return { resolvedFileName: result, failedLookupLocations };
+                    return { resolvedModule: { resolvedFileName: result, shouldBeTrueExternalModule: true }, failedLookupLocations };
                 }
             }
             
@@ -144,7 +147,7 @@ namespace ts {
             directory = parentPath;
         }
         
-        return { resolvedFileName: undefined, failedLookupLocations };
+        return { resolvedModule: undefined, failedLookupLocations };
     }
 
     function nameStartsWithDotSlashOrDotDotSlash(name: string) {
@@ -152,11 +155,11 @@ namespace ts {
         return i === 0 || (i === 1 && name.charCodeAt(0) === CharacterCodes.dot);
     }
 
-    export function classicNameResolver(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModule {
+    export function classicNameResolver(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         
         // module names that contain '!' are used to reference resources and are not resolved to actual files on disk
         if (moduleName.indexOf('!') != -1) {
-            return { resolvedFileName: undefined, failedLookupLocations: [] };
+            return { resolvedModule: undefined, failedLookupLocations: [] };
         }
         
         let searchPath = getDirectoryPath(containingFile);
@@ -194,7 +197,9 @@ namespace ts {
             searchPath = parentPath;
         }
 
-        return { resolvedFileName: referencedSourceFile, failedLookupLocations };
+        return referencedSourceFile 
+            ? { resolvedModule: { resolvedFileName: referencedSourceFile, shouldBeTrueExternalModule: false }, failedLookupLocations }
+            : { resolvedModule: undefined, failedLookupLocations };
     }
 
     /* @internal */
@@ -344,9 +349,9 @@ namespace ts {
 
         host = host || createCompilerHost(options);
         
-        const resolveModuleNamesWorker =
-            host.resolveModuleNames || 
-            ((moduleNames, containingFile) => map(moduleNames, moduleName => resolveModuleName(moduleName, containingFile, options, host).resolvedFileName));
+        const resolveModuleNamesWorker = host.resolveModuleNames 
+            ? ((moduleNames: string[], containingFile: string) => host.resolveModuleNames(moduleNames, containingFile)) 
+            : ((moduleNames: string[], containingFile: string) => map(moduleNames, moduleName => resolveModuleName(moduleName, containingFile, options, host).resolvedModule));
 
         let filesByName = createFileMap<SourceFile>(fileName => host.getCanonicalFileName(fileName));
         
@@ -465,10 +470,17 @@ namespace ts {
                         let resolutions = resolveModuleNamesWorker(moduleNames, newSourceFile.fileName);
                         // ensure that module resolution results are still correct
                         for (let i = 0; i < moduleNames.length; ++i) {
-                            let oldResolution = getResolvedModuleFileName(oldSourceFile, moduleNames[i]);
-                            if (oldResolution !== resolutions[i]) {
+                            const newResolution = resolutions[i];
+                            const oldResolution = getResolvedModule(oldSourceFile, moduleNames[i]);
+                            const resolutionChanged = oldResolution 
+                                ? !newResolution ||
+                                  oldResolution.resolvedFileName !== newResolution.resolvedFileName ||
+                                  oldResolution.shouldBeTrueExternalModule !== newResolution.shouldBeTrueExternalModule
+                                : newResolution;
+
+                            if (resolutionChanged) {
                                 return false;
-                            }                            
+                            }
                         }
                     }
                     // pass the cache of module resolutions from the old source file
@@ -841,9 +853,19 @@ namespace ts {
                 let resolutions = resolveModuleNamesWorker(moduleNames, file.fileName);
                 for (let i = 0; i < file.imports.length; ++i) {
                     let resolution = resolutions[i];
-                    setResolvedModuleName(file, moduleNames[i], resolution);
+                    setResolvedModule(file, moduleNames[i], resolution);
                     if (resolution && !options.noResolve) {
-                        findModuleSourceFile(resolution, file.imports[i]);
+                        let importedSourceFile = findModuleSourceFile(resolution.resolvedFileName, file.imports[i]);
+                        if (importedSourceFile && resolution.shouldBeTrueExternalModule) {
+                            if (!isExternalModule(importedSourceFile)) {
+                                let span = getErrorSpanForNode(file, file.imports[i]);
+                                fileProcessingDiagnostics.add(createFileDiagnostic(file, span.start, span.length, Diagnostics.File_0_is_not_a_module, importedSourceFile.fileName))
+                            }
+                            else if (importedSourceFile.referencedFiles.length) {
+                                let firstReference = importedSourceFile.referencedFiles[0];
+                                fileProcessingDiagnostics.add(createFileDiagnostic(importedSourceFile, firstReference.pos, firstReference.end - firstReference.pos, Diagnostics.Proper_external_modules_cannot_use_tripleslash_references));
+                            }
+                        } 
                     }
                 }
             }

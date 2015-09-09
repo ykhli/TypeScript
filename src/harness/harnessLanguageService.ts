@@ -222,11 +222,11 @@ module Harness.LanguageService {
                 this.getModuleResolutionsForFile = (fileName) => {
                     let scriptInfo = this.getScriptInfo(fileName);
                     let preprocessInfo = ts.preProcessFile(scriptInfo.content, /*readImportFiles*/ true);
-                    let imports: ts.Map<string> = {};
+                    let imports: ts.Map<ts.ResolvedModule> = {};
                     for (let module of preprocessInfo.importedFiles) {
                         let resolutionInfo = ts.resolveModuleName(module.fileName, fileName, compilerOptions, moduleResolutionHost);
-                        if (resolutionInfo.resolvedFileName) {
-                            imports[module.fileName] = resolutionInfo.resolvedFileName;
+                        if (resolutionInfo.resolvedModule) {
+                            imports[module.fileName] = resolutionInfo.resolvedModule;
                         }
                     }
                     return JSON.stringify(imports);

@@ -79,7 +79,7 @@ namespace ts.server {
         }
     }
     
-    interface TimestampedResolvedModule extends ResolvedModule {
+    interface TimestampedResolvedModule extends ResolvedModuleWithFailedLookupLocations {
         lastCheckTime: number; 
     }
     
@@ -99,11 +99,11 @@ namespace ts.server {
             }
         }
         
-        resolveModuleNames(moduleNames: string[], containingFile: string): string[] {
+        resolveModuleNames(moduleNames: string[], containingFile: string): ResolvedModule[] {
             let currentResolutionsInFile = this.resolvedModuleNames.get(containingFile);
             
             let newResolutions: Map<TimestampedResolvedModule> = {};
-            let resolvedFileNames: string[] = [];
+            let resolvedFileNames: ResolvedModule[] = [];
             
             let compilerOptions = this.getCompilationSettings();
                         
@@ -119,13 +119,13 @@ namespace ts.server {
                     else {
                         resolution = <TimestampedResolvedModule>resolveModuleName(moduleName, containingFile, compilerOptions, this.moduleResolutionHost);
                         resolution.lastCheckTime = Date.now();
-                        newResolutions[moduleName] = resolution;                                                
+                        newResolutions[moduleName] = resolution;
                     }
                 }
                 
                 ts.Debug.assert(resolution !== undefined);
                 
-                resolvedFileNames.push(resolution.resolvedFileName);                
+                resolvedFileNames.push(resolution.resolvedModule);
             }
             
             // replace old results with a new one
@@ -137,7 +137,7 @@ namespace ts.server {
                     return false;
                 }
                 
-                if (resolution.resolvedFileName) {
+                if (resolution.resolvedModule) {
                     // TODO: consider checking failedLookupLocations  
                     // TODO: use lastCheckTime to track expiration for module name resolution 
                     return true;

@@ -1284,7 +1284,7 @@ namespace ts {
         // Stores a mapping 'external module reference text' -> 'resolved file name' | undefined
         // It is used to resolve module names in the checker.
         // Content of this fiels should never be used directly - use getResolvedModuleFileName/setResolvedModuleFileName functions instead
-        /* @internal */ resolvedModules: Map<string>;
+        /* @internal */ resolvedModules: Map<ResolvedModule>;
         /* @internal */ imports: LiteralExpression[];
     }
 
@@ -2267,13 +2267,19 @@ namespace ts {
         // to determine location of bundled typings for node module 
         readFile(fileName: string): string;
     }
-    
+
     export interface ResolvedModule {
         resolvedFileName: string;
-        failedLookupLocations: string[];
+        // denotes that resolvedFileName should ultimately be resolved to true external module that does not put anything in global scope
+        // - file should use top level exports\imports
+        // - file should not have tripleslash references 
+        shouldBeTrueExternalModule?: boolean;
     }
     
-    export type ModuleNameResolver = (moduleName: string, containingFile: string, options: CompilerOptions, host: ModuleResolutionHost) => ResolvedModule;
+    export interface ResolvedModuleWithFailedLookupLocations  {
+        resolvedModule: ResolvedModule;
+        failedLookupLocations: string[];
+    }
 
     export interface CompilerHost extends ModuleResolutionHost {
         getSourceFile(fileName: string, languageVersion: ScriptTarget, onError?: (message: string) => void): SourceFile;
@@ -2292,7 +2298,7 @@ namespace ts {
          * If resolveModuleNames is implemented then implementation for members from ModuleResolutionHost can be just 
          * 'throw new Error("NotImplemented")'  
          */
-        resolveModuleNames?(moduleNames: string[], containingFile: string): string[];
+        resolveModuleNames?(moduleNames: string[], containingFile: string): ResolvedModule[];
     }
 
     export interface TextSpan {

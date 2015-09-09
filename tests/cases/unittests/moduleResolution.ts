@@ -40,7 +40,7 @@ module ts {
                 let containingFile = { name: containingFileName }
                 let moduleFile = { name: moduleFileNameNoExt + ext }
                 let resolution = nodeModuleNameResolver(moduleName, containingFile.name, createModuleResolutionHost(containingFile, moduleFile));                
-                assert.equal(resolution.resolvedFileName, moduleFile.name);
+                assert.equal(resolution.resolvedModule.resolvedFileName, moduleFile.name);
                 
                 let failedLookupLocations: string[] = [];
                 let dir = getDirectoryPath(containingFileName);
@@ -78,7 +78,7 @@ module ts {
             let packageJson = { name: packageJsonFileName, content: JSON.stringify({ "typings": fieldRef }) };
             let moduleFile = { name: moduleFileName };
             let resolution = nodeModuleNameResolver(moduleName, containingFile.name, createModuleResolutionHost(containingFile, packageJson, moduleFile));
-            assert.equal(resolution.resolvedFileName, moduleFile.name);
+            assert.equal(resolution.resolvedModule.resolvedFileName, moduleFile.name);
             // expect three failed lookup location - attempt to load module as file with all supported extensions
             assert.equal(resolution.failedLookupLocations.length, 3);
         }
@@ -95,7 +95,7 @@ module ts {
             let packageJson = {name: "/a/b/foo/package.json", content: JSON.stringify({main: "/c/d"})};
             let indexFile = { name: "/a/b/foo/index.d.ts" };
             let resolution = nodeModuleNameResolver("./foo", containingFile.name, createModuleResolutionHost(containingFile, packageJson, indexFile));
-            assert.equal(resolution.resolvedFileName, indexFile.name);
+            assert.equal(resolution.resolvedModule.resolvedFileName, indexFile.name);
             assert.deepEqual(resolution.failedLookupLocations, [
                 "/a/b/foo.ts",
                 "/a/b/foo.tsx",
@@ -111,7 +111,7 @@ module ts {
             let containingFile = { name: "/a/b/c/d/e.ts" };
             let moduleFile = { name: "/a/b/node_modules/foo.ts" };
             let resolution = nodeModuleNameResolver("foo", containingFile.name, createModuleResolutionHost(containingFile, moduleFile));
-            assert.equal(resolution.resolvedFileName, undefined);
+            assert.equal(resolution.resolvedModule, undefined);
             assert.deepEqual(resolution.failedLookupLocations, [
                 "/a/b/c/d/node_modules/foo.d.ts",
                 "/a/b/c/d/node_modules/foo/package.json",
@@ -135,14 +135,14 @@ module ts {
             let containingFile = { name: "/a/b/c/d/e.ts" };
             let moduleFile = { name: "/a/b/node_modules/foo.d.ts" };
             let resolution = nodeModuleNameResolver("foo", containingFile.name, createModuleResolutionHost(containingFile, moduleFile));
-            assert.equal(resolution.resolvedFileName, moduleFile.name);
+            assert.equal(resolution.resolvedModule.resolvedFileName, moduleFile.name);
         });
         
         it("load module as directory", () => {
             let containingFile = { name: "/a/node_modules/b/c/node_modules/d/e.ts" };
             let moduleFile = { name: "/a/node_modules/foo/index.d.ts" };
             let resolution = nodeModuleNameResolver("foo", containingFile.name, createModuleResolutionHost(containingFile, moduleFile));
-            assert.equal(resolution.resolvedFileName, moduleFile.name);
+            assert.equal(resolution.resolvedModule.resolvedFileName, moduleFile.name);
             assert.deepEqual(resolution.failedLookupLocations, [
                 "/a/node_modules/b/c/node_modules/d/node_modules/foo.d.ts",
                 "/a/node_modules/b/c/node_modules/d/node_modules/foo/package.json",

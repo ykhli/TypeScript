@@ -2339,8 +2339,10 @@
         "category": "Error",
         "code": 7026
     },
-
-
+    "Proper external modules cannot use tripleslash references.": {
+        "category": "Error",
+        "code": 7027
+    },
     "You cannot rename this element.": {
         "category": "Error",
         "code": 8000
