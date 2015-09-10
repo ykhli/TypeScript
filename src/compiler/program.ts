@@ -440,6 +440,7 @@ namespace ts {
             
             // check if program source files has changed in the way that can affect structure of the program
             let newSourceFiles: SourceFile[] = [];
+            let modifiedSourceFiles: SourceFile[] = [];
             for (let oldSourceFile of oldProgram.getSourceFiles()) {
                 let newSourceFile = host.getSourceFile(oldSourceFile.fileName, options.target);
                 if (!newSourceFile) {
@@ -486,6 +487,7 @@ namespace ts {
                     }
                     // pass the cache of module resolutions from the old source file
                     newSourceFile.resolvedModules = oldSourceFile.resolvedModules;
+                    modifiedSourceFiles.push(newSourceFile);
                 }
                 else {
                     // file has no changes - use it as is
@@ -504,6 +506,9 @@ namespace ts {
             files = newSourceFiles;
             fileProcessingDiagnostics = oldProgram.getFileProcessingDiagnostics();
             
+            for (let modifiedFile of modifiedSourceFiles) {
+                fileProcessingDiagnostics.reattachFileDiagnostics(modifiedFile);
+            }
             oldProgram.structureIsReused = true;
                 
             return true;
@@ -887,7 +892,7 @@ namespace ts {
             return;
 
             function findModuleSourceFile(fileName: string, nameLiteral: Expression, importResolutionContext: ImportResolutionContext ) {
-                return findSourceFile(fileName, /* isDefaultLib */ false, importResolutionContext, file, nameLiteral.pos, nameLiteral.end);
+                return findSourceFile(fileName, /* isDefaultLib */ false, importResolutionContext, file, skipTrivia(file.text, nameLiteral.pos), nameLiteral.end);
             }
         }
 

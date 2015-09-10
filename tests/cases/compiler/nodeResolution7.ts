@@ -7,4 +7,7 @@ declare module "a" {
 }
 
 // @filename: b.ts
-import y = require("a");
+import * as y from "a";
+
+// @filename: c.ts
+import x = require("./b");

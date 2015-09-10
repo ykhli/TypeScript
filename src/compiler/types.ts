@@ -2334,5 +2334,7 @@ namespace ts {
         // operation caused diagnostics to be returned by storing and comparing the return value
         // of this method before/after the operation is performed.
         getModificationCount(): number;
+        
+        /* @internal */ reattachFileDiagnostics(newFile: SourceFile): void;
     }
 }

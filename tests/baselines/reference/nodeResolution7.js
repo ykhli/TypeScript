@@ -7,6 +7,11 @@ declare module "a" {
 }
 
 //// [b.ts]
-import y = require("a");
+import * as y from "a";
+
+//// [c.ts]
+import x = require("./b");
+
 
 //// [b.js]
+//// [c.js]
