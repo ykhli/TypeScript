@@ -6550,7 +6550,29 @@ namespace ts {
             while (current && !nodeStartsNewLexicalEnvironment(current)) {
                 if (isIterationStatement(current, /*lookInLabeledStatements*/ false)) {
                     if (inFunction) {
-                        grammarErrorOnFirstToken(current, Diagnostics.Loop_contains_block_scoped_variable_0_referenced_by_a_function_in_the_loop_This_is_only_supported_in_ECMAScript_6_or_higher, declarationNameToString(node));
+                        const nodeLinks = getNodeLinks(current);
+                        if (!nodeLinks.capturedBlockScopedNames) {
+                            nodeLinks.capturedBlockScopedNames = { uniqieNames: {}, list: [] };
+                        }
+                        // every pair 'name on use-site' + 'id of declaration' should be unique
+                        // we want deduplicate cases when the same name is used in closure multiple times
+                        // at the same time having just name is not enough:
+                        // for (let x;;) {
+                        //     () => x;
+                        //     { 
+                        //          let x;
+                        //          () => x;
+                        //     } 
+                        // }
+                        // here the same name x might originate from different declarations
+                        const name = node.text + "|" + getSymbolId(symbol);
+                        if (!hasProperty(nodeLinks.capturedBlockScopedNames.uniqieNames, name)) {
+                            nodeLinks.capturedBlockScopedNames.uniqieNames[name] = name;
+                            nodeLinks.capturedBlockScopedNames.list.push({
+                                name: node,
+                                declaration: symbol.valueDeclaration
+                            })
+                        }
                     }
                     // mark value declaration so during emit they can have a special handling
                     getNodeLinks(<VariableDeclaration>symbol.valueDeclaration).flags |= NodeCheckFlags.BlockScopedBindingInLoop;
@@ -14502,6 +14524,11 @@ namespace ts {
 
         // Emitter support
 
+        function getCapturedBlockScopedNames(iterationStatement: IterationStatement): CapturedBlockScopedName[] {
+            const nodeLinks = getNodeLinks(iterationStatement);
+            return nodeLinks.capturedBlockScopedNames && nodeLinks.capturedBlockScopedNames.list;
+        }
+        
         // When resolved as an expression identifier, if the given node references an exported entity, return the declaration
         // node of the exported entity's container. Otherwise, return undefined.
         function getReferencedExportContainer(node: Identifier): SourceFile | ModuleDeclaration | EnumDeclaration {
@@ -14806,7 +14833,8 @@ namespace ts {
                 collectLinkedAliases,
                 getReferencedValueDeclaration,
                 getTypeReferenceSerializationKind,
-                isOptionalParameter
+                isOptionalParameter,
+                getCapturedBlockScopedNames
             };
         }
 

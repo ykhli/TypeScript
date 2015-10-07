@@ -1601,6 +1601,7 @@ namespace ts {
         getReferencedValueDeclaration(reference: Identifier): Declaration;
         getTypeReferenceSerializationKind(typeName: EntityName): TypeReferenceSerializationKind;
         isOptionalParameter(node: ParameterDeclaration): boolean;
+        getCapturedBlockScopedNames(iterationStatement: IterationStatement): CapturedBlockScopedName[];
     }
 
     export const enum SymbolFlags {
@@ -1748,6 +1749,17 @@ namespace ts {
         LexicalModuleMergesWithClass= 0x00008000,  // Instantiated lexical module declaration is merged with a previous class declaration.
     }
 
+    export interface CapturedBlockScopedName {
+        declaration: Declaration;
+        name: Identifier;
+    }
+    
+    /* @internal */
+    export interface CapturedBlockScopedNames {
+        uniqieNames: Map<string>;
+        list: CapturedBlockScopedName[];
+    } 
+
     /* @internal */
     export interface NodeLinks {
         resolvedType?: Type;              // Cached type of type node
@@ -1765,6 +1777,7 @@ namespace ts {
         importOnRightSide?: Symbol;       // for import declarations - import that appear on the right side
         jsxFlags?: JsxFlags;              // flags for knowning what kind of element/attributes we're dealing with
         resolvedJsxType?: Type;           // resolved element attributes type of a JSX openinglike element
+        capturedBlockScopedNames?: CapturedBlockScopedNames; // Collectio of block scoped names + declarations that are defined inside loop and captured in closures 
     }
 
     export const enum TypeFlags {

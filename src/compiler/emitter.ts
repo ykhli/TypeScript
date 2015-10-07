@@ -2991,7 +2991,61 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 return started;
             }
 
+            interface EmittedLoop {
+                functionName: string;
+                parameters: string[];
+            }
+            
+            function tryEmitLoopBodyAsFunction(iterationStatement: IterationStatement): EmittedLoop {
+                const capturedVariables = resolver.getCapturedBlockScopedNames(iterationStatement);
+                if (languageVersion >= ScriptTarget.ES6 || !capturedVariables) {
+                    return undefined;
+                }
+
+                const functionName = makeUniqueName("_loop");
+                const parameters: string[] = [];
+                for (const v of capturedVariables) {
+                    // if variable is defined in loop header it should be passed to loop function as parameter
+                    if (v.declaration.parent.kind === SyntaxKind.VariableDeclarationList && v.declaration.parent.parent === iterationStatement) {
+                        const nameText = isNameOfNestedRedeclaration(v.name) ? getGeneratedNameForNode(v.name) : v.name.text;
+                        parameters.push(nameText);
+                    }
+                }
+                writeLine();
+                const bodyIsBlock = iterationStatement.statement.kind === SyntaxKind.Block;
+                write(`var ${functionName} = function(${parameters.join(", ")})`);
+                if (!bodyIsBlock) {
+                    write(" {");
+                    writeLine();
+                    increaseIndent();
+                }
+                emitEmbeddedStatement(iterationStatement.statement);
+                if (!bodyIsBlock) {
+                    decreaseIndent();
+                    writeLine();
+                    write("}");
+                }
+                write(";");
+                writeLine();
+                
+                return {
+                    functionName, parameters
+                }
+            }
+
+            function emitCallLoopBodyFunction(loop: EmittedLoop): void {
+                write("{");
+                writeLine();
+                increaseIndent();
+                write(`${loop.functionName}(${loop.parameters.join(", ")});`);
+                writeLine();
+                decreaseIndent();
+                write("}");
+            }
+
             function emitForStatement(node: ForStatement) {
+                const loopBody = tryEmitLoopBodyAsFunction(node);
+                
                 let endPos = emitToken(SyntaxKind.ForKeyword, node.pos);
                 write(" ");
                 endPos = emitToken(SyntaxKind.OpenParenToken, endPos);
@@ -3013,7 +3067,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 write(";");
                 emitOptional(" ", node.incrementor);
                 write(")");
-                emitEmbeddedStatement(node.statement);
+                if (loopBody) {
+                    emitCallLoopBodyFunction(loopBody);
+                }
+                else {
+                    emitEmbeddedStatement(node.statement);
+                }
             }
 
             function emitForInOrForOfStatement(node: ForInStatement | ForOfStatement) {
@@ -3705,12 +3764,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                         // for (...) { var <some-uniqie-name> = void 0; }
                         // this is necessary to preserve ES6 semantic in scenarios like
                         // for (...) { let x; console.log(x); x = 1 } // assignment on one iteration should not affect other iterations
-                        let isUninitializedLet =
+                        let isLetDefinedInLoop =
                             (resolver.getNodeCheckFlags(node) & NodeCheckFlags.BlockScopedBindingInLoop) &&
                             (getCombinedFlagsForIdentifier(<Identifier>node.name) & NodeFlags.Let);
 
                         // NOTE: default initialization should not be added to let bindings in for-in\for-of statements
-                        if (isUninitializedLet &&
+                        if (isLetDefinedInLoop &&
                             node.parent.parent.kind !== SyntaxKind.ForInStatement &&
                             node.parent.parent.kind !== SyntaxKind.ForOfStatement) {
                             initializer = createVoidZero();
