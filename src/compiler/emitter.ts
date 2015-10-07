@@ -2909,8 +2909,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
             }
 
             function emitDoStatement(node: DoStatement) {
+                const loop = tryEmitLoopBodyAsFunction(node);
+
                 write("do");
-                emitEmbeddedStatement(node.statement);
+                if (loop) {
+                    emitCallLoopBodyFunction(loop, /* emitAsBlock */ true);
+                }
+                else {
+                    emitEmbeddedStatement(node.statement);
+                }
                 if (node.statement.kind === SyntaxKind.Block) {
                     write(" ");
                 }
@@ -2923,10 +2930,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
             }
 
             function emitWhileStatement(node: WhileStatement) {
+                const loop = tryEmitLoopBodyAsFunction(node);
+                
                 write("while (");
                 emit(node.expression);
                 write(")");
-                emitEmbeddedStatement(node.statement);
+
+                if (loop) {
+                    emitCallLoopBodyFunction(loop, /* emitAsBlock */ true);
+                }
+                else {
+                    emitEmbeddedStatement(node.statement);
+                }
             }
 
             /**
@@ -3033,18 +3048,22 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 }
             }
 
-            function emitCallLoopBodyFunction(loop: EmittedLoop): void {
-                write("{");
-                writeLine();
-                increaseIndent();
+            function emitCallLoopBodyFunction(loop: EmittedLoop, emitAsBlock: boolean): void {
+                if (emitAsBlock) {
+                    write("{");
+                    writeLine();
+                    increaseIndent();
+                }
                 write(`${loop.functionName}(${loop.parameters.join(", ")});`);
-                writeLine();
-                decreaseIndent();
-                write("}");
+                if (emitAsBlock) {
+                    writeLine();
+                    decreaseIndent();
+                    write("}");
+                }
             }
 
             function emitForStatement(node: ForStatement) {
-                const loopBody = tryEmitLoopBodyAsFunction(node);
+                const loop = tryEmitLoopBodyAsFunction(node);
                 
                 let endPos = emitToken(SyntaxKind.ForKeyword, node.pos);
                 write(" ");
@@ -3067,8 +3086,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 write(";");
                 emitOptional(" ", node.incrementor);
                 write(")");
-                if (loopBody) {
-                    emitCallLoopBodyFunction(loopBody);
+                
+                if (loop) {
+                    emitCallLoopBodyFunction(loop, /* emitAsBlock */ true);
                 }
                 else {
                     emitEmbeddedStatement(node.statement);
@@ -3080,6 +3100,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                     return emitDownLevelForOfStatement(node);
                 }
 
+                const loop = tryEmitLoopBodyAsFunction(node);
+                
                 let endPos = emitToken(SyntaxKind.ForKeyword, node.pos);
                 write(" ");
                 endPos = emitToken(SyntaxKind.OpenParenToken, endPos);
@@ -3102,7 +3124,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 }
                 emit(node.expression);
                 emitToken(SyntaxKind.CloseParenToken, node.expression.end);
-                emitEmbeddedStatement(node.statement);
+
+                if (loop) {
+                    emitCallLoopBodyFunction(loop, /* emitAsBlock */ true);
+                }
+                else {
+                    emitEmbeddedStatement(node.statement);
+                }
             }
 
             function emitDownLevelForOfStatement(node: ForOfStatement) {
@@ -3127,6 +3155,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 // Note also that because an extra statement is needed to assign to the LHS,
                 // for-of bodies are always emitted as blocks.
 
+                const loop = tryEmitLoopBodyAsFunction(node);
+                
                 let endPos = emitToken(SyntaxKind.ForKeyword, node.pos);
                 write(" ");
                 endPos = emitToken(SyntaxKind.OpenParenToken, endPos);
@@ -3235,7 +3265,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                 emitEnd(node.initializer);
                 write(";");
 
-                if (node.statement.kind === SyntaxKind.Block) {
+                if (loop) {
+                    writeLine();
+                    emitCallLoopBodyFunction(loop, /* emitAsBlock */ false);
+                }
+                else if (node.statement.kind === SyntaxKind.Block) {
                     emitLines((<Block>node.statement).statements);
                 }
                 else {
